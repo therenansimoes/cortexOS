@@ -6,23 +6,23 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		F5F8AE722EF320F40010728C /* libcortex_ios_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F5F8AE712EF320F40010728C /* libcortex_ios_ffi.a */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		F55341322EF313CA00E8B2C6 /* CortexOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CortexOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F55341412EF3168800E8B2C6 /* CortexOS */ = {isa = PBXFileReference; lastKnownFileType = folder; path = CortexOS; sourceTree = "<group>"; };
+		F5F8AE712EF320F40010728C /* libcortex_ios_ffi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcortex_ios_ffi.a; path = "../../../../target/aarch64-apple-ios/release/libcortex_ios_ffi.a"; sourceTree = "<group>"; };
+		F5F8AE742EF322FF0010728C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = file.bplist; name = Info.plist; path = CortexOS/Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		F55341342EF313CA00E8B2C6 /* CortexOS */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = CortexOS;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		F553412F2EF313CA00E8B2C6 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F5F8AE722EF320F40010728C /* libcortex_ios_ffi.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -32,7 +32,9 @@
 		F55341292EF313CA00E8B2C6 = {
 			isa = PBXGroup;
 			children = (
-				F55341342EF313CA00E8B2C6 /* CortexOS */,
+				F5F8AE742EF322FF0010728C /* Info.plist */,
+				F55341412EF3168800E8B2C6 /* CortexOS */,
+				F5F8AE702EF320F30010728C /* Frameworks */,
 				F55341332EF313CA00E8B2C6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,6 +45,14 @@
 				F55341322EF313CA00E8B2C6 /* CortexOS.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		F5F8AE702EF320F30010728C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F5F8AE712EF320F40010728C /* libcortex_ios_ffi.a */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -59,9 +69,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				F55341342EF313CA00E8B2C6 /* CortexOS */,
 			);
 			name = CortexOS;
 			packageProductDependencies = (
@@ -265,6 +272,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = "/Users/renansimoes/Desktop/Projetos/cortexOS/target/aarch64-apple-ios/release";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rxstech.CortexOS;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -272,6 +280,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "CortexOS/CortexOS-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -297,6 +306,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = "/Users/renansimoes/Desktop/Projetos/cortexOS/target/aarch64-apple-ios/release";
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rxstech.CortexOS;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -304,6 +314,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "CortexOS/CortexOS-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

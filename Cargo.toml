@@ -12,6 +12,7 @@ members = [
     "crates/skill",
     "crates/inference",
     "crates/node",
+    "crates/ios-ffi",
     "examples/heartbeat",
     "examples/relay-demo",
     "examples/skill-network",

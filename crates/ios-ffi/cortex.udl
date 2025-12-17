@@ -1,0 +1,27 @@
+namespace cortex {
+  [Throws=CortexError]
+  string cortex_init();
+  
+  [Throws=CortexError]
+  string cortex_start_agent(string name);
+  
+  [Throws=CortexError]
+  string cortex_send_event(string agent_id, string payload);
+  
+  [Throws=CortexError]
+  sequence<string> cortex_list_peers();
+  
+  [Throws=CortexError]
+  string cortex_agent_status(string agent_id);
+  
+  [Throws=CortexError]
+  string cortex_broadcast_discovery();
+};
+
+[Error]
+enum CortexError {
+  "Runtime",
+  "Network",
+  "Agent",
+  "Event",
+};

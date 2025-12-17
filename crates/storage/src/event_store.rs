@@ -71,7 +71,7 @@ impl EventStore for MemoryEventStore {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "rocksdb")]
 pub mod rocks {
     use super::*;
     use rocksdb::{ColumnFamilyDescriptor, Options, DB};
@@ -280,5 +280,5 @@ pub mod rocks {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "rocksdb")]
 pub use rocks::RocksEventStore;

@@ -34,7 +34,7 @@ pub struct ExecutionResult {
 pub struct SkillExecutor {
     my_id: NodeId,
     local_skills: Arc<RwLock<LocalSkillRegistry>>,
-    trust_graph: Arc<RwLock<TrustGraph>>,
+    _trust_graph: Arc<RwLock<TrustGraph>>,
 }
 
 impl SkillExecutor {
@@ -46,7 +46,7 @@ impl SkillExecutor {
         Self {
             my_id,
             local_skills,
-            trust_graph,
+            _trust_graph: trust_graph,
         }
     }
 
@@ -136,13 +136,13 @@ impl SkillExecutor {
 
 /// Remote executor - sends tasks to other nodes
 pub struct RemoteExecutor {
-    my_id: NodeId,
+    _my_id: NodeId,
     trust_graph: Arc<RwLock<TrustGraph>>,
 }
 
 impl RemoteExecutor {
     pub fn new(my_id: NodeId, trust_graph: Arc<RwLock<TrustGraph>>) -> Self {
-        Self { my_id, trust_graph }
+        Self { _my_id: my_id, trust_graph }
     }
 
     /// Rate a remote execution result

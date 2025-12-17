@@ -14,8 +14,8 @@ pub use graph_store::{GraphQuery, GraphStore, MemoryGraphStore};
 pub use privacy::{PrivacyAware, PrivacyFilter};
 pub use sync::{ContentHash, DiffRequest, DiffResponse, ExportChunk, SyncManager, SyncManifest};
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "rocksdb")]
 pub use event_store::RocksEventStore;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "rocksdb")]
 pub use graph_store::RocksGraphStore;

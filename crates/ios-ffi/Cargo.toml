@@ -10,7 +10,7 @@ crate-type = ["staticlib"]
 cortex-core = { path = "../core" }
 cortex-agent = { path = "../agent" }
 cortex-grid = { path = "../grid" }
-cortex-storage = { path = "../storage" }
+cortex-storage = { path = "../storage", default-features = false }
 cortex-reputation = { path = "../reputation" }
 cortex-skill = { path = "../skill" }
 

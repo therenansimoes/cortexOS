@@ -19,7 +19,7 @@ impl ContentHash {
     }
 
     pub fn as_hex(&self) -> String {
-        hex::encode(self.0)
+        hex::encode(&self.0)
     }
 }
 

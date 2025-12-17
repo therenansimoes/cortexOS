@@ -1,16 +1,20 @@
 [package]
-name = "example-relay-demo"
+name = "example-skill-network"
 version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "relay-demo"
+name = "skill-network"
 path = "src/main.rs"
 
 [dependencies]
 cortex-core = { path = "../../crates/core" }
 cortex-grid = { path = "../../crates/grid" }
+cortex-reputation = { path = "../../crates/reputation" }
+cortex-skill = { path = "../../crates/skill" }
+cortex-inference = { path = "../../crates/inference" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-rand = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }

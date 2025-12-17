@@ -1,0 +1,24 @@
+# CortexOS Cargo Configuration
+
+[alias]
+# Build for WASI target
+wasm = "build --target wasm32-wasip1 -p cortex-core"
+wasm-release = "build --target wasm32-wasip1 -p cortex-core --release"
+
+# Run all tests
+test-all = "test --workspace"
+
+# Check all targets
+check-all = "check --workspace --all-targets"
+
+[build]
+# Uncomment to enable incremental compilation (faster rebuilds)
+# incremental = true
+
+[target.wasm32-wasip1]
+# WASI-specific settings
+rustflags = ["-C", "opt-level=z"]
+
+[target.wasm32-unknown-unknown]
+# Browser WASM settings
+rustflags = ["-C", "opt-level=z"]

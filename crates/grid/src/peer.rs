@@ -13,6 +13,12 @@ impl NodeId {
         Self(bytes)
     }
 
+    pub fn random() -> Self {
+        let mut bytes = [0u8; 32];
+        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut bytes);
+        Self(bytes)
+    }
+
     pub fn from_pubkey(pubkey: &[u8; 32]) -> Self {
         let hash = blake3::hash(pubkey);
         Self(*hash.as_bytes())

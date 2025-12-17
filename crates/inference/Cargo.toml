@@ -1,0 +1,27 @@
+[package]
+name = "cortex-inference"
+version.workspace = true
+edition.workspace = true
+description = "Local LLM inference for decentralized AI"
+
+[features]
+default = []
+# Enable llama.cpp bindings (requires cmake and C++ compiler)
+llama = ["llama-cpp-2"]
+
+[dependencies]
+cortex-core = { path = "../core" }
+cortex-skill = { path = "../skill" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+blake3 = { workspace = true }
+
+# Optional: llama.cpp bindings
+llama-cpp-2 = { version = "0.1", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

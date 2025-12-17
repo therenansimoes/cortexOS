@@ -1,0 +1,29 @@
+[package]
+name = "cortexd"
+version.workspace = true
+edition.workspace = true
+description = "CortexOS Node Daemon - decentralized AI network"
+
+[[bin]]
+name = "cortexd"
+path = "src/main.rs"
+
+[dependencies]
+cortex-core = { path = "../core" }
+cortex-grid = { path = "../grid" }
+cortex-reputation = { path = "../reputation" }
+cortex-skill = { path = "../skill" }
+cortex-storage = { path = "../storage" }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+uuid = { workspace = true }
+rand = { workspace = true }
+clap = { version = "4.4", features = ["derive"] }
+directories = "5.0"

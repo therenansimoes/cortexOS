@@ -75,6 +75,12 @@ Grid is a **binary, versioned wire protocol**. Start with a small message set an
 - `ARTIFACT_GET`/`ARTIFACT_PUT`: content-addressed blobs (models, code, bundles)
 - `ERROR`: structured, versioned error reporting
 
+**Relay mesh messages (AirTag-style)**
+- `RELAY_BEACON`: encrypted broadcast payload (recipient pubkey hash, TTL, hop count, e2e-encrypted data)
+- `RELAY_FORWARD`: re-broadcast received beacon with decremented TTL
+- `RELAY_DELIVER`: upload beacon to DHT/pubsub when internet is available
+- `RELAY_FETCH`: query DHT for beacons matching own pubkey prefix
+
 ## Core Architecture
 
 ### 1. Execution Substrate
@@ -122,6 +128,34 @@ Emitters and Receivers: An emitter module writes patterns to hardware actuators 
 Auto‑Negotiation: Agents choose the best available channel for communication (e.g., BLE when two phones are near, ultrasonic chirps when radio is blocked) and fall back gracefully.
 
 Encoding Scheme: A compact codebook maps high-level intents ("task request", "acknowledge", "error") to specific signal patterns. Advanced versions can evolve new signals and learn to decode them.
+
+### 5.1 Crowd-Sourced Relay Network (AirTag-Style)
+
+Inspired by Apple's Find My network, CortexOS nodes can form an **anonymous relay mesh** that enables message propagation even when nodes have no direct internet connectivity.
+
+**Core Concept:**
+- Any CortexOS node can act as a **silent relay** for messages from unknown nodes
+- Relayed messages are **end-to-end encrypted**; relay nodes cannot read content
+- Nodes periodically broadcast **encrypted location beacons** via BLE
+- Other nodes that "hear" these beacons can relay them to the Grid when they have connectivity
+
+**Relay Protocol:**
+- `RELAY_BEACON`: encrypted payload + recipient pubkey hash + TTL + hop count
+- `RELAY_FORWARD`: relay nodes re-broadcast beacons they receive (respecting TTL)
+- `RELAY_DELIVER`: when a beacon reaches a node with internet, it uploads to a distributed bulletin board (DHT or pubsub)
+- `RELAY_FETCH`: recipient nodes poll the bulletin for messages matching their pubkey
+
+**Privacy Guarantees:**
+- Relay nodes learn nothing about sender identity or message content
+- Beacons use rotating identifiers (like AirTag's rotating keys)
+- Location data is encrypted to recipient's public key only
+- No central server; uses DHT (e.g., libp2p Kademlia) or decentralized pubsub
+
+**Use Cases:**
+- Offline node discovery: find other CortexOS nodes even without internet
+- Censorship resistance: messages propagate through crowd even if sender is blocked
+- Emergency communication: nodes in disaster zones relay signals through passersby
+- Swarm coordination: robots/drones share state through nearby devices
 
 ### 6. Agent Framework
 
@@ -174,7 +208,8 @@ cortexos/
 ├── signal/                  # Subnet signal abstraction
 │   ├── emitter.rs           # Light, sound, BLE emission utilities
 │   ├── receiver.rs          # Decoding signals from sensors
-│   └── codebook.rs          # Mapping of semantics to signal patterns
+│   ├── codebook.rs          # Mapping of semantics to signal patterns
+│   └── relay.rs             # AirTag-style relay mesh (beacon, forward, deliver)
 ├── sensor/                  # Hardware drivers
 │   ├── ble.rs
 │   ├── mic.rs
@@ -237,6 +272,14 @@ Milestone 0.2 — Grid Bootstrap (Spread Early)
 - Implement LAN discovery and handshake (UDP/mDNS) with signed peer profiles.
 - Define the first **Grid wire protocol** messages (hello, capabilities, task request/ack, chunk transfer).
 - Demo: two nodes exchange events/tasks over the Grid (no Subnet required yet).
+
+Milestone 0.2.1 — Relay Mesh (AirTag-Style Propagation)
+
+- Implement BLE beacon broadcasting with rotating identifiers.
+- Build the relay protocol: `RELAY_BEACON`, `RELAY_FORWARD`, `RELAY_DELIVER`, `RELAY_FETCH`.
+- Integrate with libp2p Kademlia DHT for decentralized bulletin board.
+- Add end-to-end encryption using recipient's public key (X25519 + ChaCha20-Poly1305).
+- Demo: offline node sends message that propagates through relay nodes to reach recipient.
 
 Milestone 0.3 — Thought Graph (Event-Log First)
 

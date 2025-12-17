@@ -1,0 +1,22 @@
+[package]
+name = "cortex-grid"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+cortex-core = { path = "../core" }
+serde = { workspace = true }
+serde-big-array = "0.5"
+bincode = { workspace = true }
+tokio = { workspace = true }
+libp2p = { workspace = true }
+x25519-dalek = { workspace = true }
+chacha20poly1305 = { workspace = true }
+ed25519-dalek = { workspace = true }
+blake3 = { workspace = true }
+rand = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }

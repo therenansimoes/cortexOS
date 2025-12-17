@@ -1,0 +1,10 @@
+[package]
+name = "cortex-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+uuid = { workspace = true }
+blake3 = { workspace = true }
+hex = "0.4"

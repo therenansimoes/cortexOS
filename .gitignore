@@ -1,0 +1,41 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+*.pdb
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# Coverage
+*.profraw
+*.profdata
+coverage/
+lcov.info
+
+# WASM build artifacts
+pkg/
+*.wasm
+
+# RocksDB data (local dev)
+data/
+*.db/
+
+# Test artifacts
+test-output/

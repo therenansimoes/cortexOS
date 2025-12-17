@@ -1,0 +1,4 @@
+[package]
+name = "example-heartbeat"
+version.workspace = true
+edition.workspace = true

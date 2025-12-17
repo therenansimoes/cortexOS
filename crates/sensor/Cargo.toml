@@ -1,0 +1,4 @@
+[package]
+name = "cortex-sensor"
+version.workspace = true
+edition.workspace = true

@@ -1,0 +1,4 @@
+[package]
+name = "cortex-signal"
+version.workspace = true
+edition.workspace = true

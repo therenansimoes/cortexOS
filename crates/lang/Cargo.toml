@@ -1,0 +1,10 @@
+[package]
+name = "cortex-lang"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+cortex-core = { path = "../core" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

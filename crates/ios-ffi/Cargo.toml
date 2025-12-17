@@ -14,13 +14,15 @@ cortex-storage = { path = "../storage" }
 cortex-reputation = { path = "../reputation" }
 cortex-skill = { path = "../skill" }
 
-tokio = { version = "1.35", features = ["macros", "rt"] }
+tokio = { version = "1.35", features = ["macros", "rt-multi-thread", "net", "time", "sync"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"
 uuid = { version = "1.6", features = ["v4", "serde"] }
 thiserror = "1.0"
 async-trait = "0.1"
+once_cell = "1.19"
+reqwest = { version = "0.12.26", features = ["json", "blocking"] }
 
 [target.'cfg(not(target_os = "ios"))'.dependencies]
 tokio = { version = "1.35", features = ["macros", "rt-multi-thread"] }

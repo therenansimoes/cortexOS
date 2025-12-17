@@ -1,5 +1,19 @@
 # CortexOS Development Guide
 
+## ⚠️ ZERO MOCK POLICY
+
+**This project has a strict NO MOCK policy.**
+
+- All code must use real implementations
+- No fake data, no stubs, no simulations
+- If a feature can't run on a platform, use compile-time feature flags to exclude it
+- Tests should use real components or be marked as integration tests
+- iOS/Android FFI must call real Rust code, never return hardcoded strings
+
+When in doubt: **make it real or don't ship it.**
+
+---
+
 ## Quick Commands
 
 ```bash

@@ -1,9 +1,17 @@
 CortexOS Blueprint v1.0
-Overview
+
+## Priority: Run Anywhere, Spread Widely
+
+This blueprint is optimized for two outcomes:
+
+1) **Run on any device**: the same core logic must compile and execute across desktop/server, mobile-class Linux, and browsers/embedded via **WASM/WASI**.
+2) **Spread a lot**: nodes should discover each other and cooperate through **open, small, versioned protocols** (Grid), without central servers.
+
+## Overview
 
 CortexOS is envisioned as a radical departure from conventional software frameworks. It is not a typical application or toolkit; it is a living substrate for embodied artificial intelligence. CortexOS provides a platform-agnostic, event-driven operating layer where AI agents can perceive, reason, communicate and act across a diverse array of hardware and communication channels. By blending concepts from distributed systems, neurobiology, and embodied cognition, CortexOS aims to create a cognitive fabric that evolves and adapts with its users.
 
-Vision and Goals
+## Vision and Goals
 
 Universal Embodiment: Run the same agent logic on desktops, mobile devices, IoT boards, drones or even inside a web browser. CortexOS should compile to native code (e.g., Rust) and to WASM for maximum portability.
 
@@ -17,8 +25,59 @@ Decentralized Cognition: Multiple CortexOS nodes form the Grid, a distributed br
 
 Self-Evolution: The platform is designed to allow agents to modify their own code and behaviours (under user control), using reinforcement learning and evolutionary strategies to improve over time.
 
-Core Architecture
-1. Execution Substrate
+## Design Principles (Portability-First)
+
+- **Core is OS-agnostic**: the `core` runtime depends only on traits + event schemas; platform adapters live at the edges.
+- **Event-log first**: perceptions/actions/network messages are timestamped events; derived “graphs” and indexes can be built on top.
+- **Backpressure everywhere**: every event subscription must define what happens under load (drop/coalesce/sample/persist).
+- **Capability-based permissions**: agents get explicit capability tokens (FS, network, sensors). No ambient authority.
+- **Open protocols, minimal surface**: Grid/Subnet messages are binary, versioned, and content-addressed where possible.
+
+## MVP Interfaces (v0)
+
+These are the minimal interfaces to make CortexOS portable and “spreadable” early. They are intentionally small and should remain stable as the codebase grows.
+
+### Event Envelope (core)
+
+All perceptions/actions/network messages should be representable as a single envelope:
+
+- `event_id`: globally unique ID (content-addressable is preferred)
+- `ts`: timestamp (monotonic where available)
+- `source`: node/agent identifier
+- `kind`: versioned event type (e.g., `sensor.mic.v1`, `grid.msg.v1`, `agent.intent.v1`)
+- `payload`: bytes (small in hot path) or `payload_ref` (hash + chunk refs)
+- `trace`: optional correlation IDs (`trace_id`, `span_id`) for debugging/metrics
+
+### Backpressure Policy (core)
+
+Every subscription/queue must declare one policy:
+
+- `drop_new`: drop incoming when full
+- `drop_old`: drop oldest when full
+- `coalesce(key)`: keep latest per key (e.g., same sensor)
+- `sample(n)`: keep 1 of every n events
+- `persist`: spill to storage (event-log), then deliver later
+
+### Grid Wire Protocol (grid)
+
+Grid is a **binary, versioned wire protocol**. Start with a small message set and keep it forwards-compatible.
+
+**Peer hello / handshake**
+- `HELLO`: `protocol_version`, `node_id`, `pubkey`, capability summary, optional addresses/hints, `signature`
+- `CHALLENGE` / `PROVE`: anti-spoof challenge-response
+- `WELCOME`: negotiated session parameters (compression optional, chunk size limits, etc.)
+
+**Minimum message types**
+- `PING`/`PONG`: liveness
+- `CAPS_GET`/`CAPS_SET`: capability profile exchange
+- `TASK_REQUEST`/`TASK_ACK`: ask another node to run a well-defined task
+- `EVENT_CHUNK_GET`/`EVENT_CHUNK_PUT`: sync event-log chunks by hash
+- `ARTIFACT_GET`/`ARTIFACT_PUT`: content-addressed blobs (models, code, bundles)
+- `ERROR`: structured, versioned error reporting
+
+## Core Architecture
+
+### 1. Execution Substrate
 
 Written primarily in Rust, with a core kernel compiled to WebAssembly for optional in-browser or embedded use.
 
@@ -26,7 +85,7 @@ The runtime is an event loop that schedules microtasks (similar to the Actor mod
 
 Hardware abstraction layers provide bindings to system-specific features (BLE stacks, file systems, sensors). The core communicates with these modules through traits.
 
-2. Perception & Intention Engine
+### 2. Perception & Intention Engine
 
 Sensor Drivers: Each hardware interface (e.g., microphone, accelerometer, camera, ambient light sensor, BLE radio, Wi‑Fi, GPIO) is wrapped in a driver that converts raw signals into Events.
 
@@ -34,7 +93,7 @@ Event Stream: Events are timestamped and placed on a global bus. Agents subscrib
 
 Intention Manager: When an agent sets a goal (e.g., "build a web server"), it registers an intention in the Thought Graph. A scheduler monitors open intentions and matches them with available agents and resources.
 
-3. Cognitive Kernel (Thought Graph)
+### 3. Cognitive Kernel (Thought Graph)
 
 Memory Nodes: Each node in the graph represents a concept, perception, action, result or abstract thought. Nodes have typed relationships (e.g., "causes", "contradicts", "reminds-of").
 
@@ -44,7 +103,7 @@ Reasoning Engine: Provides query and inference over the graph. For example, an a
 
 Emotion / Priority Tags: Nodes can carry meta-attributes such as urgency, novelty, or reward values to influence scheduling.
 
-4. Distributed Conscience (Grid)
+### 4. Distributed Conscience (Grid)
 
 Peer Profiles: Each node declares its capabilities (CPU speed, GPU presence, sensor suite, network interfaces) and willingness to accept tasks. Profiles include privacy preferences.
 
@@ -54,7 +113,7 @@ Task Delegation: A Grid Orchestrator matches open tasks to remote nodes based on
 
 Knowledge Sharing: Nodes can request patches of each others' Thought Graphs by sending hash-based diff requests. Only user-approved fragments are shared.
 
-5. Subnet Signal Layer
+### 5. Subnet Signal Layer
 
 Signals: The primitive communication unit. A signal encodes a small semantic symbol (like a neuron spike) and is mapped to a physical emission (pulse pattern, sound chirp, BLE advertisement).
 
@@ -64,7 +123,7 @@ Auto‑Negotiation: Agents choose the best available channel for communication (
 
 Encoding Scheme: A compact codebook maps high-level intents ("task request", "acknowledge", "error") to specific signal patterns. Advanced versions can evolve new signals and learn to decode them.
 
-6. Agent Framework
+### 6. Agent Framework
 
 Agent Lifecycle:
 
@@ -88,7 +147,7 @@ Social Agents: Handle communication with humans via chat or voice; can translate
 
 Planner Agents: Break complex goals into subgoals, orchestrate other agents.
 
-7. DSL: MindLang
+### 7. DSL: MindLang
 
 An agent-centric language for defining behaviours, goals and reflexes. Example syntax:
 
@@ -104,7 +163,7 @@ Supports asynchronous actions, pattern matching on events, and integration with 
 
 MindLang code is compiled to Rust traits or interpreted by a VM.
 
-Directory Structure (Proposed)
+## Directory Structure (Proposed)
 cortexos/
 ├── Cargo.toml               # Rust package descriptor
 ├── README.md                # Project overview and build instructions
@@ -146,7 +205,7 @@ cortexos/
 │   └── distributed_build/
 └── docs/                    # Additional documentation
 
-Implementation Considerations
+## Implementation Considerations
 
 Asynchronous Runtime: Use tokio or async-std for efficient scheduling of thousands of lightweight tasks. Each agent runs as an async task with a channel for events and messages.
 
@@ -162,19 +221,24 @@ Privacy & Security: All node-to-node communications are signed and optionally en
 
 Fail-Safe: In low-power or emergency situations, CortexOS can suspend high-level cognition and revert to minimal reflex loops (e.g., beep SOS on LED).
 
-Development Roadmap
+## Development Roadmap (Portability-First)
 
-Milestone 0.1 — Proof of Concept
+Milestone 0.1 — Portable Runtime + Event Model
 
-Implement runtime.rs with event loop, message dispatch, and basic agent registry.
+- Define the **Event** envelope (IDs, timestamps, payload, tracing metadata) and a minimal **event bus** with backpressure policies.
+- Implement `core` runtime (event loop + agent registry + message queues) targeting:
+  - Native (desktop/server)
+  - WASI (as the portability baseline; keep a WASI build green)
+- The exact Rust WASI target/tooling choice will be made when the first `Cargo.toml` is introduced.
+- Demo agents should not require hardware: e.g., a heartbeat agent emitting timer events, and a listener agent responding.
 
-Develop signal module with LED and sound pulse encoding/decoding.
+Milestone 0.2 — Grid Bootstrap (Spread Early)
 
-Create two simple agents: a heartbeat agent that emits a light pulse every second, and a listener agent that responds to pulses.
+- Implement LAN discovery and handshake (UDP/mDNS) with signed peer profiles.
+- Define the first **Grid wire protocol** messages (hello, capabilities, task request/ack, chunk transfer).
+- Demo: two nodes exchange events/tasks over the Grid (no Subnet required yet).
 
-Run on desktop and microcontroller targets.
-
-Milestone 0.2 — Thought Graph & MindLang
+Milestone 0.3 — Thought Graph (Event-Log First)
 
 Build a simple persistent graph store with RocksDB.
 
@@ -182,15 +246,17 @@ Implement MindLang parser and a minimal VM capable of scheduling agent behaviour
 
 Add memory logging to the heartbeat/listener demo; agents record each pulse in the graph.
 
-Milestone 0.3 — Grid & Peer Discovery
+Build a simple persistent event store and a derived graph view.
 
-Implement LAN peer discovery and handshake (peer.rs).
+- Start with append-only storage and a small set of high-value queries.
+- Add privacy controls to limit what can be exported/shared.
 
-Allow heartbeat signals to be relayed through the grid and aggregated by a remote node.
+Milestone 0.4 — Subnet Framing (Robust Low-Level Signals)
 
-Add privacy controls to limit which memories are shared.
+- Implement a minimal framing layer (preamble, CRC, sequence, ACK) before “evolving” codebooks.
+- Add one emitter/receiver pair (LED or audio) that works across at least two devices.
 
-Milestone 0.4 — Compiler & Planner Agents
+Milestone 0.5 — Compiler & Planner Agents
 
 Integrate a small code-generation model (e.g., Code LLaMA) via model.rs.
 
@@ -198,7 +264,7 @@ Implement a planner agent capable of reading a MindLang goal and invoking the co
 
 Demonstrate distributed compilation: one node generates code, another compiles it, a third runs the test suite.
 
-Milestone 0.5 — Subnet Adaptation & Evolution
+Milestone 0.6 — Subnet Adaptation & Evolution
 
 Extend the signal codebook to support BLE beacons and vibrational patterns.
 

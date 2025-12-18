@@ -558,15 +558,27 @@ pub extern "C" fn cortex_broadcast_discovery() -> *mut c_char {
     let agents_len = state.agents.len();
 
     RUNTIME.spawn(async move {
+        // Bind to 0.0.0.0 to allow sending broadcast
         if let Ok(socket) = UdpSocket::bind("0.0.0.0:0").await {
-            let _ = socket.set_broadcast(true);
-            let target = "239.255.70.77:7077";
+            // Enable Broadcast (Essential for 255.255.255.255)
+            if let Err(e) = socket.set_broadcast(true) {
+                eprintln!("Failed to set broadcast: {}", e);
+            }
+            
+            // Use Global Broadcast Address
+            // This is more robust on home Wi-Fi than Multicast (239.x.x.x)
+            let target = "255.255.255.255:7077";
+            
             let msg = format!(r#"{{"cortex":true,"node_id":"{}","type":"discovery","agents":{}}}"#, node_id_clone, agents_len);
-            let _ = socket.send_to(msg.as_bytes(), target).await;
+            
+            match socket.send_to(msg.as_bytes(), target).await {
+                Ok(_) => println!("Broadcast sent to {}", target),
+                Err(e) => eprintln!("Failed to send broadcast: {}", e),
+            }
         }
     });
 
-    state.log_event(format!("Discovery broadcast #{} (UDP Multicast)", broadcast_num));
+    state.log_event(format!("Discovery broadcast #{} (UDP Broadcast)", broadcast_num));
     string_to_c(format!(r#"{{"node_id":"{}","broadcast":{},"agents":{},"message":"LAN discovery broadcast sent"}}"#, node_id, broadcast_num, agents_len))
 }
 

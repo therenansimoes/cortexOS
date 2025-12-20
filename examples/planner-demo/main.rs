@@ -136,48 +136,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut error_agent = TaskExecutorAgent::new("error-handler", &["error", "handling"]);
     let mut test_agent = TaskExecutorAgent::new("tester", &["test", "write"]);
 
+    // Helper to create agent contexts
+    let create_context = || AgentContext::new(
+        event_bus.clone(),
+        graph.clone(),
+        intentions.clone(),
+        agent_spawn_tx.clone(),
+    );
+
     // Create contexts for each agent
-    let mut planner_ctx = AgentContext::new(
-        event_bus.clone(),
-        graph.clone(),
-        intentions.clone(),
-        agent_spawn_tx.clone(),
-    );
-
-    let mut api_ctx = AgentContext::new(
-        event_bus.clone(),
-        graph.clone(),
-        intentions.clone(),
-        agent_spawn_tx.clone(),
-    );
-
-    let mut http_ctx = AgentContext::new(
-        event_bus.clone(),
-        graph.clone(),
-        intentions.clone(),
-        agent_spawn_tx.clone(),
-    );
-
-    let mut routing_ctx = AgentContext::new(
-        event_bus.clone(),
-        graph.clone(),
-        intentions.clone(),
-        agent_spawn_tx.clone(),
-    );
-
-    let mut error_ctx = AgentContext::new(
-        event_bus.clone(),
-        graph.clone(),
-        intentions.clone(),
-        agent_spawn_tx.clone(),
-    );
-
-    let mut test_ctx = AgentContext::new(
-        event_bus.clone(),
-        graph.clone(),
-        intentions.clone(),
-        agent_spawn_tx.clone(),
-    );
+    let mut planner_ctx = create_context();
+    let mut api_ctx = create_context();
+    let mut http_ctx = create_context();
+    let mut routing_ctx = create_context();
+    let mut error_ctx = create_context();
+    let mut test_ctx = create_context();
 
     // Initialize all agents
     info!("📋 Initializing agents...");

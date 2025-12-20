@@ -112,8 +112,8 @@ impl PlannerAgent {
         self.stats.read().await.clone()
     }
 
-    /// Decompose a goal into subgoals
-    async fn decompose_goal(&self, goal: &str) -> Vec<String> {
+    /// Decompose a goal into subgoals using rule-based pattern matching
+    async fn decompose_goal_rule_based(&self, goal: &str) -> Vec<String> {
         // Simple rule-based decomposition for now
         // In the future, this can use LLM for more intelligent decomposition
         
@@ -177,9 +177,10 @@ impl PlannerAgent {
         // Decompose goal into subgoals
         let subgoals = if self.use_llm {
             // TODO: Use LLM for intelligent decomposition when available
-            self.decompose_goal(goal).await
+            // For now, fall back to rule-based decomposition
+            self.decompose_goal_rule_based(goal).await
         } else {
-            self.decompose_goal(goal).await
+            self.decompose_goal_rule_based(goal).await
         };
 
         let mut stats = self.stats.write().await;
@@ -479,7 +480,7 @@ mod tests {
     #[tokio::test]
     async fn test_goal_decomposition() {
         let planner = PlannerAgent::new();
-        let subgoals = planner.decompose_goal("build a web server").await;
+        let subgoals = planner.decompose_goal_rule_based("build a web server").await;
         assert!(!subgoals.is_empty());
         assert!(subgoals.len() >= 3);
     }

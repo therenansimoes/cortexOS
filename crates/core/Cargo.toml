@@ -31,3 +31,7 @@ getrandom = { workspace = true }
 [[bench]]
 name = "event_bench"
 harness = false
+
+[[bench]]
+name = "backpressure_bench"
+harness = false

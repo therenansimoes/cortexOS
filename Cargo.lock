@@ -694,6 +694,16 @@ version = "0.1.0"
 [[package]]
 name = "cortex-signal"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bincode",
+ "cortex-core",
+ "rand 0.8.5",
+ "serde",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "cortex-skill"

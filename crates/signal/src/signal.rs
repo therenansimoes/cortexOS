@@ -1,7 +1,7 @@
 use cortex_core::SymbolId;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Channel {
     Light,
     Audio,
@@ -10,7 +10,7 @@ pub enum Channel {
     Radio,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pulse {
     pub on: bool,
     pub duration_us: u32,

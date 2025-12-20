@@ -79,3 +79,21 @@ pub enum NegotiationError {
     #[error("quality below threshold: snr={snr}, min={min}")]
     QualityBelowThreshold { snr: f32, min: f32 },
 }
+
+#[derive(Debug, Error)]
+pub enum RoutingError {
+    #[error("no route available to destination")]
+    NoRouteAvailable,
+
+    #[error("invalid route")]
+    InvalidRoute,
+
+    #[error("route discovery timeout")]
+    DiscoveryTimeout,
+
+    #[error("max hops exceeded")]
+    MaxHopsExceeded,
+
+    #[error("routing loop detected")]
+    LoopDetected,
+}

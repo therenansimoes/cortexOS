@@ -14,10 +14,12 @@ const TASK_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_RETRIES: u32 = 3;
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]  // Fields may be used in future implementations
 struct PendingTask {
+    #[allow(dead_code)]  // Used for debugging and future implementations
     task_id: [u8; 32],
+    #[allow(dead_code)]  // May be used for retry logic
     payload: Vec<u8>,
+    #[allow(dead_code)]  // Used for routing retries
     target_node: NodeId,
     created_at: Instant,
     retries: u32,
@@ -205,7 +207,7 @@ impl GridOrchestrator {
             target_node,
             created_at: Instant::now(),
             retries: 0,
-            last_status: TaskStatus::InProgress,
+            last_status: TaskStatus::Accepted,
         };
 
         self.pending_tasks.write().await.insert(task_id, task);
@@ -242,8 +244,6 @@ impl GridOrchestrator {
             GridError::DiscoveryError("Shutdown receiver already taken".to_string())
         })?;
 
-        let local_node_id = self.local_node_id;
-
         // Clone for the first task
         let pending_tasks_events = Arc::clone(&self.pending_tasks);
         let message_tx_events = self.message_tx.clone();
@@ -275,7 +275,7 @@ impl GridOrchestrator {
                                         target_node,
                                         created_at: Instant::now(),
                                         retries: 0,
-                                        last_status: TaskStatus::InProgress,
+                                        last_status: TaskStatus::Accepted,
                                     };
                                     pending_tasks_events.write().await.insert(task_id, task);
 
@@ -329,7 +329,6 @@ impl GridOrchestrator {
         let pending_tasks_msg = Arc::clone(&self.pending_tasks);
         let event_bus_msg = Arc::clone(&event_bus);
         let message_tx_clone = self.message_tx.clone();
-        let _local_node_id_msg = local_node_id;
 
         tokio::spawn(async move {
             let mut shutdown_rx = shutdown_rx;

@@ -3,7 +3,12 @@ use futures::StreamExt;
 use libp2p::mdns;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{PeerId, Swarm};
-use std::collections::HashSet;
+use libp2p::kad;
+use libp2p::kad::{store::MemoryStore, Mode};
+use libp2p::identity::Keypair;
+use libp2p::multiaddr::Protocol;
+use libp2p::{Multiaddr, Transport};
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -256,15 +261,10 @@ impl Default for MdnsDiscovery {
     }
 }
 
-use libp2p::kad;
-use libp2p::kad::{store::MemoryStore, Mode};
-use libp2p::identity::Keypair;
-use libp2p::multiaddr::Protocol;
-use libp2p::{Multiaddr, Transport};
-use std::collections::HashMap;
-
 pub struct KademliaDiscovery {
     local_node_id: NodeId,
+    local_pubkey: [u8; 32],
+    listen_port: u16,
     discovered: Arc<RwLock<HashMap<NodeId, PeerInfo>>>,
     running: Arc<RwLock<bool>>,
 }
@@ -272,13 +272,15 @@ pub struct KademliaDiscovery {
 impl KademliaDiscovery {
     pub fn new(
         local_node_id: NodeId,
-        _local_pubkey: [u8; 32],
-        _listen_port: u16,
+        local_pubkey: [u8; 32],
+        listen_port: u16,
     ) -> Result<(Self, mpsc::Receiver<DiscoveryEvent>)> {
         let (_tx, rx) = mpsc::channel(64);
 
         let discovery = Self {
             local_node_id,
+            local_pubkey,
+            listen_port,
             discovered: Arc::new(RwLock::new(HashMap::new())),
             running: Arc::new(RwLock::new(false)),
         };
@@ -419,16 +421,15 @@ impl Discovery for KademliaDiscovery {
         }
 
         let local_node_id = self.local_node_id;
+        let local_pubkey = self.local_pubkey;
+        let listen_port = self.listen_port;
         let discovered = Arc::clone(&self.discovered);
         let running = Arc::clone(&self.running);
         
         // Create a channel for events
-        let (tx, mut rx) = mpsc::channel(64);
+        let (tx, _rx) = mpsc::channel(64);
         
-        // Spawn the event loop - use a dummy pubkey and port for now
-        let local_pubkey = [0u8; 32];
-        let listen_port = 0u16;
-        
+        // Spawn the event loop
         tokio::spawn(async move {
             if let Err(e) = Self::run_event_loop(
                 local_node_id,
@@ -439,13 +440,6 @@ impl Discovery for KademliaDiscovery {
                 running,
             ).await {
                 warn!("Kademlia event loop error: {}", e);
-            }
-        });
-
-        // Discard events since we're already handling them in the event loop
-        tokio::spawn(async move {
-            while rx.recv().await.is_some() {
-                // Events are already handled in the event loop
             }
         });
 

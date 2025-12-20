@@ -38,6 +38,9 @@ cargo run --example heartbeat
 # Run relay mesh demo
 cargo run --example relay-demo
 
+# Run compiler agent demo
+cargo run -p compiler-demo
+
 # Format code
 cargo fmt
 
@@ -63,7 +66,8 @@ cortexos/
 ├── examples/
 │   ├── heartbeat/     # Basic event-driven agents demo
 │   ├── relay-demo/    # AirTag-style relay mesh demo
-│   └── skill-network/ # Decentralized skill-based AI network demo
+│   ├── skill-network/ # Decentralized skill-based AI network demo
+│   └── compiler-demo/ # AI-assisted code generation demo
 ```
 
 ## Crate Dependencies
@@ -96,6 +100,74 @@ Anonymous message relay with:
 - Rotating identities
 - TTL/hop count limits
 - DHT bulletin board
+
+## Testing
+
+```bash
+# Test specific crate
+cargo test -p cortex-core
+
+# Test with output
+cargo test -- --nocapture
+
+# Test single function
+cargo test test_function_name
+```
+
+## Built-in Agents
+
+CortexOS includes several built-in agents in the `cortex-agent` crate:
+
+### HeartbeatAgent
+Simple agent that emits periodic heartbeat events for health monitoring and testing event-driven communication.
+
+**Capabilities**: `heartbeat`, `health-check`
+
+### LoggerAgent
+Records and logs events from the event bus, useful for debugging and monitoring.
+
+**Capabilities**: `logging`, `monitoring`
+
+### RelayAgent
+Handles AirTag-style relay mesh communication for offline message propagation.
+
+**Capabilities**: `relay`, `mesh-networking`
+
+### CompilerAgent (NEW in PR #25)
+AI-assisted code generation agent that can generate, validate, and check compilation of code in multiple languages.
+
+**Capabilities**: `code-generation`, `compilation`, `code-validation`, `syntax-checking`
+
+**Supported Languages**: Rust, Python, JavaScript, TypeScript
+
+**Quality Metrics**:
+- Code quality scoring (>80% target)
+- Compilation success checking (>90% target)
+- Validation across syntax, documentation, error handling, and conventions
+
+**Usage Example**:
+```rust
+use cortex_agent::prelude::*;
+use cortex_agent::builtin::compiler::{CodeGenRequest, CodeGenResponse};
+
+let mut compiler = CompilerAgent::new()
+    .with_name("code-generator");
+
+let request = CodeGenRequest {
+    task_description: "Create an HTTP server".to_string(),
+    language: "rust".to_string(),
+    context: Some("Using standard library".to_string()),
+    constraints: vec!["Must handle errors".to_string()],
+};
+
+// Send request via event bus
+let event = Event::new("compiler.generate", serde_json::to_vec(&request).unwrap());
+compiler.on_event(&event, &mut ctx).await?;
+
+// Listen for compiler.response events
+```
+
+See `examples/compiler-demo` for a complete demonstration.
 
 ## Testing
 

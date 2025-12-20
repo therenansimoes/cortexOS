@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_encode_simple_pattern() {
-        let pattern = SignalPattern::new(vec![Pulse::on(1000), Pulse::off(500)]);
+        let _pattern = SignalPattern::new(vec![Pulse::on(1000), Pulse::off(500)]);
         
         // Test encoding logic directly without creating emitter
         let mut data = Vec::new();
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_empty_pattern_encoding() {
-        let pattern = SignalPattern::empty();
+        let _pattern = SignalPattern::empty();
         
         let mut data = Vec::new();
         data.extend_from_slice(&CORTEX_MANUFACTURER_ID.to_le_bytes());

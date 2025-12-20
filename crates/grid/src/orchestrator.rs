@@ -12,9 +12,9 @@ use cortex_core::runtime::EventBus;
 
 const TASK_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_RETRIES: u32 = 3;
-const RETRY_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]  // Fields may be used in future implementations
 struct PendingTask {
     task_id: [u8; 32],
     payload: Vec<u8>,
@@ -228,8 +228,6 @@ impl GridOrchestrator {
     /// Start the orchestrator
     pub async fn start(&mut self) -> Result<()> {
         let event_bus = Arc::clone(&self.event_bus);
-        let pending_tasks = Arc::clone(&self.pending_tasks);
-        let message_tx = self.message_tx.clone();
         let peer_store = self.peer_store.clone();
 
         // Subscribe to local events that should be delegated
@@ -245,6 +243,10 @@ impl GridOrchestrator {
         })?;
 
         let local_node_id = self.local_node_id;
+
+        // Clone for the first task
+        let pending_tasks_events = Arc::clone(&self.pending_tasks);
+        let message_tx_events = self.message_tx.clone();
 
         // Spawn event handler task
         tokio::spawn(async move {
@@ -275,10 +277,10 @@ impl GridOrchestrator {
                                         retries: 0,
                                         last_status: TaskStatus::InProgress,
                                     };
-                                    pending_tasks.write().await.insert(task_id, task);
+                                    pending_tasks_events.write().await.insert(task_id, task);
 
                                     // Send task request
-                                    if let Some(tx) = &message_tx {
+                                    if let Some(tx) = &message_tx_events {
                                         let _ = tx.send((
                                             target_node,
                                             Message::TaskRequest {
@@ -300,7 +302,7 @@ impl GridOrchestrator {
         });
 
         // Spawn timeout checker
-        let pending_tasks_timeout = Arc::clone(&pending_tasks);
+        let pending_tasks_timeout = Arc::clone(&self.pending_tasks);
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(10));
             loop {
@@ -324,10 +326,10 @@ impl GridOrchestrator {
         });
 
         // Spawn message receiver handler
-        let pending_tasks_msg = Arc::clone(&pending_tasks);
+        let pending_tasks_msg = Arc::clone(&self.pending_tasks);
         let event_bus_msg = Arc::clone(&event_bus);
-        let message_tx_clone = message_tx.clone();
-        let local_node_id_msg = local_node_id;
+        let message_tx_clone = self.message_tx.clone();
+        let _local_node_id_msg = local_node_id;
 
         tokio::spawn(async move {
             let mut shutdown_rx = shutdown_rx;

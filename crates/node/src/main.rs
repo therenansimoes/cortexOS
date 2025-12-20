@@ -118,12 +118,12 @@ async fn run_daemon(config: NodeConfig) -> Result<(), Box<dyn std::error::Error>
 
     // Initialize components
     let peer_store = Arc::new(PeerStore::new(Duration::from_secs(120)));
-    let trust_graph = Arc::new(RwLock::new(TrustGraph::new(node_id)));
+    let _trust_graph = Arc::new(RwLock::new(TrustGraph::new(node_id)));
     let skill_registry = Arc::new(RwLock::new(NetworkSkillRegistry::new(node_id)));
     
     // Initialize event bus and runtime for orchestrator
     let event_bus = Arc::new(EventBus::default());
-    let runtime = Arc::new(Runtime::new());
+    let _runtime = Arc::new(Runtime::new());
 
     // Register local skills
     if !config.skills.is_empty() {

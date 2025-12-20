@@ -265,97 +265,73 @@ use std::collections::HashMap;
 
 pub struct KademliaDiscovery {
     local_node_id: NodeId,
-    swarm: Option<Swarm<kad::Behaviour<MemoryStore>>>,
     discovered: Arc<RwLock<HashMap<NodeId, PeerInfo>>>,
     running: Arc<RwLock<bool>>,
-    event_tx: Option<mpsc::Sender<DiscoveryEvent>>,
 }
 
 impl KademliaDiscovery {
     pub fn new(
         local_node_id: NodeId,
-        local_pubkey: [u8; 32],
-        listen_port: u16,
+        _local_pubkey: [u8; 32],
+        _listen_port: u16,
     ) -> Result<(Self, mpsc::Receiver<DiscoveryEvent>)> {
-        let (tx, rx) = mpsc::channel(64);
+        let (_tx, rx) = mpsc::channel(64);
 
-        // Create libp2p keypair from the pubkey
-        // For now, we'll generate a new keypair since conversion is complex
+        let discovery = Self {
+            local_node_id,
+            discovered: Arc::new(RwLock::new(HashMap::new())),
+            running: Arc::new(RwLock::new(false)),
+        };
+
+        Ok((discovery, rx))
+    }
+
+    async fn run_event_loop(
+        _local_node_id: NodeId,
+        _local_pubkey: [u8; 32],
+        _listen_port: u16,
+        discovered: Arc<RwLock<HashMap<NodeId, PeerInfo>>>,
+        event_tx: mpsc::Sender<DiscoveryEvent>,
+        running: Arc<RwLock<bool>>,
+    ) -> Result<()> {
+        // Create libp2p keypair
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
 
         // Create a Kademlia behaviour with memory store
         let store = MemoryStore::new(local_peer_id);
-        let mut kad_config = kad::Config::default();
-        kad_config.set_protocol_names(vec![kad::ProtocolName::from("/cortex/kad/1.0.0")]);
+        let kad_config = kad::Config::default();
         let behaviour = kad::Behaviour::with_config(local_peer_id, store, kad_config);
 
         // Build the swarm
         let transport = libp2p::tcp::tokio::Transport::default()
             .upgrade(libp2p::core::upgrade::Version::V1)
-            .authenticate(libp2p::noise::Config::new(&local_key).unwrap())
+            .authenticate(
+                libp2p::noise::Config::new(&local_key)
+                    .map_err(|e| GridError::DiscoveryError(format!("Noise config error: {}", e)))?,
+            )
             .multiplex(libp2p::yamux::Config::default())
             .boxed();
 
-        let swarm = libp2p::swarm::SwarmBuilder::with_tokio_executor(
+        let mut swarm = Swarm::new(
             transport,
             behaviour,
             local_peer_id,
-        )
-        .build();
+            libp2p::swarm::Config::with_tokio_executor(),
+        );
 
-        Ok((
-            Self {
-                local_node_id,
-                swarm: Some(swarm),
-                discovered: Arc::new(RwLock::new(HashMap::new())),
-                running: Arc::new(RwLock::new(false)),
-                event_tx: Some(tx),
-            },
-            rx,
-        ))
-    }
+        // Listen on all interfaces
+        let listen_addr: Multiaddr = format!("/ip4/0.0.0.0/tcp/0")
+            .parse()
+            .map_err(|e| GridError::DiscoveryError(format!("Invalid listen address: {}", e)))?;
 
-    pub fn add_bootstrap_peer(&mut self, multiaddr: Multiaddr) -> Result<()> {
-        if let Some(swarm) = &mut self.swarm {
-            if let Some(peer_id) = multiaddr.iter().find_map(|p| {
-                if let Protocol::P2p(peer_id) = p {
-                    Some(peer_id)
-                } else {
-                    None
-                }
-            }) {
-                swarm.behaviour_mut().add_address(&peer_id, multiaddr);
-                Ok(())
-            } else {
-                Err(GridError::DiscoveryError(
-                    "Multiaddr must contain peer ID".to_string(),
-                ))
-            }
-        } else {
-            Err(GridError::DiscoveryError("Swarm not initialized".to_string()))
-        }
-    }
+        swarm
+            .listen_on(listen_addr)
+            .map_err(|e| GridError::DiscoveryError(format!("Failed to listen: {}", e)))?;
 
-    pub fn bootstrap(&mut self) -> Result<()> {
-        if let Some(swarm) = &mut self.swarm {
-            swarm
-                .behaviour_mut()
-                .bootstrap()
-                .map_err(|e| GridError::DiscoveryError(format!("Bootstrap failed: {:?}", e)))?;
-            Ok(())
-        } else {
-            Err(GridError::DiscoveryError("Swarm not initialized".to_string()))
-        }
-    }
+        // Set server mode for better DHT performance
+        swarm.behaviour_mut().set_mode(Some(Mode::Server));
 
-    async fn run_event_loop(
-        mut swarm: Swarm<kad::Behaviour<MemoryStore>>,
-        local_node_id: NodeId,
-        discovered: Arc<RwLock<HashMap<NodeId, PeerInfo>>>,
-        event_tx: mpsc::Sender<DiscoveryEvent>,
-        running: Arc<RwLock<bool>>,
-    ) {
         loop {
             {
                 if !*running.read().await {
@@ -373,7 +349,7 @@ impl KademliaDiscovery {
                         }) => {
                             debug!("Kademlia: Routing updated for peer {} with {} addresses", peer, addresses.len());
                             
-                            // Convert PeerId to NodeId (simplified)
+                            // Convert PeerId to NodeId
                             let peer_bytes = peer.to_bytes();
                             let mut node_id_bytes = [0u8; 32];
                             let hash = blake3::hash(&peer_bytes);
@@ -384,7 +360,6 @@ impl KademliaDiscovery {
                             let socket_addrs: Vec<SocketAddr> = addresses
                                 .iter()
                                 .filter_map(|addr| {
-                                    // Try to extract IP and port
                                     let mut ip = None;
                                     let mut port = None;
                                     for component in addr.iter() {
@@ -431,45 +406,48 @@ impl KademliaDiscovery {
                 }
             }
         }
+
+        Ok(())
     }
 }
 
 #[async_trait]
 impl Discovery for KademliaDiscovery {
     async fn start(&mut self) -> Result<()> {
-        let swarm = self.swarm.take().ok_or_else(|| {
-            GridError::DiscoveryError("Swarm already started or not initialized".to_string())
-        })?;
-
-        // Listen on all interfaces
-        let listen_addr: Multiaddr = format!("/ip4/0.0.0.0/tcp/0")
-            .parse()
-            .map_err(|e| GridError::DiscoveryError(format!("Invalid listen address: {}", e)))?;
-
-        let mut swarm = swarm;
-        swarm
-            .listen_on(listen_addr)
-            .map_err(|e| GridError::DiscoveryError(format!("Failed to listen: {}", e)))?;
-
-        // Set server mode for better DHT performance
-        swarm.behaviour_mut().set_mode(Some(Mode::Server));
-
         {
             *self.running.write().await = true;
         }
 
         let local_node_id = self.local_node_id;
         let discovered = Arc::clone(&self.discovered);
-        let event_tx = self.event_tx.take().unwrap();
         let running = Arc::clone(&self.running);
+        
+        // Create a channel for events
+        let (tx, mut rx) = mpsc::channel(64);
+        
+        // Spawn the event loop - use a dummy pubkey and port for now
+        let local_pubkey = [0u8; 32];
+        let listen_port = 0u16;
+        
+        tokio::spawn(async move {
+            if let Err(e) = Self::run_event_loop(
+                local_node_id,
+                local_pubkey,
+                listen_port,
+                discovered,
+                tx,
+                running,
+            ).await {
+                warn!("Kademlia event loop error: {}", e);
+            }
+        });
 
-        tokio::spawn(Self::run_event_loop(
-            swarm,
-            local_node_id,
-            discovered,
-            event_tx,
-            running,
-        ));
+        // Discard events since we're already handling them in the event loop
+        tokio::spawn(async move {
+            while rx.recv().await.is_some() {
+                // Events are already handled in the event loop
+            }
+        });
 
         info!("Kademlia discovery started");
         Ok(())

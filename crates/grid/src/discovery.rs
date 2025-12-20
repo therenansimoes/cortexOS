@@ -3,7 +3,12 @@ use futures::StreamExt;
 use libp2p::mdns;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{PeerId, Swarm};
-use std::collections::HashSet;
+use libp2p::kad;
+use libp2p::kad::{store::MemoryStore, Mode};
+use libp2p::identity::Keypair;
+use libp2p::multiaddr::Protocol;
+use libp2p::{Multiaddr, Transport};
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -253,5 +258,203 @@ impl MdnsDiscovery {
 impl Default for MdnsDiscovery {
     fn default() -> Self {
         Self::new().expect("Failed to create MdnsDiscovery")
+    }
+}
+
+pub struct KademliaDiscovery {
+    local_node_id: NodeId,
+    local_pubkey: [u8; 32],
+    listen_port: u16,
+    discovered: Arc<RwLock<HashMap<NodeId, PeerInfo>>>,
+    running: Arc<RwLock<bool>>,
+}
+
+impl KademliaDiscovery {
+    pub fn new(
+        local_node_id: NodeId,
+        local_pubkey: [u8; 32],
+        listen_port: u16,
+    ) -> Result<(Self, mpsc::Receiver<DiscoveryEvent>)> {
+        let (_tx, rx) = mpsc::channel(64);
+
+        let discovery = Self {
+            local_node_id,
+            local_pubkey,
+            listen_port,
+            discovered: Arc::new(RwLock::new(HashMap::new())),
+            running: Arc::new(RwLock::new(false)),
+        };
+
+        Ok((discovery, rx))
+    }
+
+    async fn run_event_loop(
+        _local_node_id: NodeId,
+        _local_pubkey: [u8; 32],
+        _listen_port: u16,
+        discovered: Arc<RwLock<HashMap<NodeId, PeerInfo>>>,
+        event_tx: mpsc::Sender<DiscoveryEvent>,
+        running: Arc<RwLock<bool>>,
+    ) -> Result<()> {
+        // Create libp2p keypair
+        let local_key = Keypair::generate_ed25519();
+        let local_peer_id = PeerId::from(local_key.public());
+
+        // Create a Kademlia behaviour with memory store
+        let store = MemoryStore::new(local_peer_id);
+        let kad_config = kad::Config::default();
+        let behaviour = kad::Behaviour::with_config(local_peer_id, store, kad_config);
+
+        // Build the swarm
+        let transport = libp2p::tcp::tokio::Transport::default()
+            .upgrade(libp2p::core::upgrade::Version::V1)
+            .authenticate(
+                libp2p::noise::Config::new(&local_key)
+                    .map_err(|e| GridError::DiscoveryError(format!("Noise config error: {}", e)))?,
+            )
+            .multiplex(libp2p::yamux::Config::default())
+            .boxed();
+
+        let mut swarm = Swarm::new(
+            transport,
+            behaviour,
+            local_peer_id,
+            libp2p::swarm::Config::with_tokio_executor(),
+        );
+
+        // Listen on all interfaces
+        let listen_addr: Multiaddr = "/ip4/0.0.0.0/tcp/0"
+            .parse()
+            .map_err(|e| GridError::DiscoveryError(format!("Invalid listen address: {}", e)))?;
+
+        swarm
+            .listen_on(listen_addr)
+            .map_err(|e| GridError::DiscoveryError(format!("Failed to listen: {}", e)))?;
+
+        // Set server mode for better DHT performance
+        swarm.behaviour_mut().set_mode(Some(Mode::Server));
+
+        loop {
+            {
+                if !*running.read().await {
+                    break;
+                }
+            }
+
+            tokio::select! {
+                event = swarm.select_next_some() => {
+                    match event {
+                        SwarmEvent::Behaviour(kad::Event::RoutingUpdated {
+                            peer,
+                            addresses,
+                            ..
+                        }) => {
+                            debug!("Kademlia: Routing updated for peer {} with {} addresses", peer, addresses.len());
+                            
+                            // Convert PeerId to NodeId
+                            let peer_bytes = peer.to_bytes();
+                            let mut node_id_bytes = [0u8; 32];
+                            let hash = blake3::hash(&peer_bytes);
+                            node_id_bytes.copy_from_slice(hash.as_bytes());
+                            let node_id = NodeId(node_id_bytes);
+
+                            // Convert libp2p Multiaddr to SocketAddr if possible
+                            let socket_addrs: Vec<SocketAddr> = addresses
+                                .iter()
+                                .filter_map(|addr| {
+                                    let mut ip = None;
+                                    let mut port = None;
+                                    for component in addr.iter() {
+                                        match component {
+                                            Protocol::Ip4(addr) => ip = Some(std::net::IpAddr::V4(addr)),
+                                            Protocol::Ip6(addr) => ip = Some(std::net::IpAddr::V6(addr)),
+                                            Protocol::Tcp(p) => port = Some(p),
+                                            _ => {}
+                                        }
+                                    }
+                                    match (ip, port) {
+                                        (Some(ip), Some(port)) => Some(SocketAddr::new(ip, port)),
+                                        _ => None,
+                                    }
+                                })
+                                .collect();
+
+                            if !socket_addrs.is_empty() {
+                                let mut discovered_map = discovered.write().await;
+                                let peer_info = discovered_map
+                                    .entry(node_id)
+                                    .or_insert_with(|| PeerInfo::new(node_id, [0u8; 32]));
+                                
+                                peer_info.addresses = socket_addrs.clone();
+                                peer_info.touch();
+
+                                info!("Kademlia discovered peer: {} at {:?}", node_id, socket_addrs);
+                                let _ = event_tx
+                                    .send(DiscoveryEvent {
+                                        peer_id: node_id,
+                                        addresses: socket_addrs,
+                                    })
+                                    .await;
+                            }
+                        }
+                        SwarmEvent::NewListenAddr { address, .. } => {
+                            info!("Kademlia listening on {}", address);
+                        }
+                        _ => {}
+                    }
+                }
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                    // Keep the loop alive
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl Discovery for KademliaDiscovery {
+    async fn start(&mut self) -> Result<()> {
+        {
+            *self.running.write().await = true;
+        }
+
+        let local_node_id = self.local_node_id;
+        let local_pubkey = self.local_pubkey;
+        let listen_port = self.listen_port;
+        let discovered = Arc::clone(&self.discovered);
+        let running = Arc::clone(&self.running);
+        
+        // Create a channel for events
+        let (tx, _rx) = mpsc::channel(64);
+        
+        // Spawn the event loop
+        tokio::spawn(async move {
+            if let Err(e) = Self::run_event_loop(
+                local_node_id,
+                local_pubkey,
+                listen_port,
+                discovered,
+                tx,
+                running,
+            ).await {
+                warn!("Kademlia event loop error: {}", e);
+            }
+        });
+
+        info!("Kademlia discovery started");
+        Ok(())
+    }
+
+    async fn stop(&mut self) -> Result<()> {
+        *self.running.write().await = false;
+        info!("Kademlia discovery stopped");
+        Ok(())
+    }
+
+    async fn discovered_peers(&self) -> Vec<PeerInfo> {
+        let discovered = self.discovered.read().await;
+        discovered.values().cloned().collect()
     }
 }

@@ -29,7 +29,9 @@ async fn setup_routes(routers: &[(NodeId, MultiHopRouter)]) {
 
             let hops: Vec<RouteHop> = (i + 1..=j)
                 .map(|idx| {
-                    RouteHop::new(routers[idx].0, Channel::Ble).with_latency(100 * (idx - i) as u32)
+                    // Latency is cumulative from source, so each hop adds 100µs
+                    let cumulative_latency = 100 * idx as u32;
+                    RouteHop::new(routers[idx].0, Channel::Ble).with_latency(cumulative_latency)
                 })
                 .collect();
 

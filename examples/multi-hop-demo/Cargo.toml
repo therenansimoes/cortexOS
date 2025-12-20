@@ -3,14 +3,6 @@ name = "multi-hop-demo"
 version.workspace = true
 edition.workspace = true
 
-[[bin]]
-name = "multi-hop-demo"
-path = "src/main.rs"
-
-[[bin]]
-name = "routing_performance"
-path = "benches/routing_performance.rs"
-
 [dependencies]
 cortex-core = { path = "../../crates/core" }
 cortex-signal = { path = "../../crates/signal" }

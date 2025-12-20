@@ -109,7 +109,13 @@ use crate::error::SignalError;
 use crate::signal::{Channel, Signal};
 
 const DEFAULT_MAX_HOPS: u8 = 7;
+const MAX_HOP_LIMIT: u8 = 15;
 const ROUTE_EXPIRY: Duration = Duration::from_secs(300);
+
+// Route quality scoring weights
+const QUALITY_SUCCESS_WEIGHT: f32 = 0.6;
+const QUALITY_HOP_WEIGHT: f32 = 0.3;
+const QUALITY_AGE_WEIGHT: f32 = 0.1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RouteId([u8; 16]);
@@ -214,16 +220,30 @@ impl Route {
             return 0.0;
         }
 
-        let success_rate = if self.success_count + self.failure_count > 0 {
+        let success_rate = self.calculate_success_rate();
+        let hop_penalty = self.calculate_hop_penalty();
+        let age_penalty = self.calculate_age_penalty();
+
+        success_rate * QUALITY_SUCCESS_WEIGHT 
+            + hop_penalty * QUALITY_HOP_WEIGHT 
+            + age_penalty * QUALITY_AGE_WEIGHT
+    }
+
+    fn calculate_success_rate(&self) -> f32 {
+        if self.success_count + self.failure_count > 0 {
             self.success_count as f32 / (self.success_count + self.failure_count) as f32
         } else {
             0.5
-        };
+        }
+    }
 
-        let hop_penalty = 1.0 / (1.0 + self.hop_count() as f32 * 0.2);
-        let age_penalty = 1.0 - (self.created_at.elapsed().as_secs() as f32 / ROUTE_EXPIRY.as_secs() as f32).min(1.0);
+    fn calculate_hop_penalty(&self) -> f32 {
+        1.0 / (1.0 + self.hop_count() as f32 * 0.2)
+    }
 
-        success_rate * 0.6 + hop_penalty * 0.3 + age_penalty * 0.1
+    fn calculate_age_penalty(&self) -> f32 {
+        let age_ratio = self.created_at.elapsed().as_secs() as f32 / ROUTE_EXPIRY.as_secs() as f32;
+        1.0 - age_ratio.min(1.0)
     }
 
     pub fn mark_used(&mut self) {
@@ -285,7 +305,7 @@ impl MultiHopMessage {
     }
 
     pub fn can_forward(&self) -> bool {
-        self.ttl > 0 && self.hop_count < DEFAULT_MAX_HOPS
+        self.ttl > 0 && self.hop_count < MAX_HOP_LIMIT
     }
 
     pub fn forward(&mut self, current_node: NodeId) -> Result<(), SignalError> {
@@ -330,7 +350,7 @@ impl RouteDiscoveryRequest {
     }
 
     pub fn can_forward(&self) -> bool {
-        self.ttl > 0 && self.hop_count < DEFAULT_MAX_HOPS
+        self.ttl > 0 && self.hop_count < MAX_HOP_LIMIT
     }
 
     pub fn forward(&mut self, node_id: NodeId) {
@@ -553,11 +573,16 @@ impl MultiHopRouter {
         request
     }
 
-    pub async fn handle_discovery_request(&self, request: &mut RouteDiscoveryRequest) -> Option<RouteDiscoveryReply> {
+    pub async fn handle_discovery_request(&self, request: &mut RouteDiscoveryRequest, channel: Channel) -> Option<RouteDiscoveryReply> {
         if request.destination == self.node_id {
             let hops: Vec<RouteHop> = request.path.iter()
                 .zip(request.path.iter().skip(1))
-                .map(|(_, next)| RouteHop::new(*next, Channel::Ble))
+                .enumerate()
+                .map(|(idx, (_, next))| {
+                    // Use the provided channel for discovered routes
+                    // In a real implementation, this would query node capabilities
+                    RouteHop::new(*next, channel.clone()).with_latency(1000 * (idx + 1) as u32)
+                })
                 .collect();
 
             return Some(RouteDiscoveryReply {

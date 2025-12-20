@@ -16,6 +16,7 @@ members = [
     "examples/heartbeat",
     "examples/relay-demo",
     "examples/skill-network",
+    "examples/compiler-demo",
 ]
 
 [workspace.package]

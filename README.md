@@ -1,5 +1,7 @@
 CortexOS Blueprint v1.0
 
+> **📋 Development Plan Available**: See [SUMMARY.md](./SUMMARY.md) for the complete breakdown of 40 PRs across 7 development phases. Also check [ROADMAP.md](./ROADMAP.md) for a visual overview and [HOW_TO_CREATE_PRS.md](./HOW_TO_CREATE_PRS.md) for step-by-step instructions.
+
 ## Priority: Run Anywhere, Spread Widely
 
 This blueprint is optimized for two outcomes:

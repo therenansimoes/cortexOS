@@ -18,12 +18,13 @@ import sys
 from dataclasses import dataclass
 from typing import List, Optional
 
-try:
-    from github import Github
-except ImportError:
-    print("Error: PyGithub not installed.")
-    print("Install it with: pip install PyGithub")
-    sys.exit(1)
+# Only import Github if not in dry-run mode
+def import_github():
+    try:
+        from github import Github
+        return Github
+    except ImportError:
+        return None
 
 
 @dataclass
@@ -805,32 +806,90 @@ def create_issue_body(pr: PR) -> str:
 
 
 def main():
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Create GitHub issues for CortexOS PRs')
+    parser.add_argument('--dry-run', action='store_true', 
+                       help='Preview issues without creating them')
+    parser.add_argument('--phase', type=int, choices=range(1, 9),
+                       help='Create issues for a specific phase (1-7) or all cross-cutting (8)')
+    args = parser.parse_args()
+
+    # Filter PRs by phase if specified
+    prs_to_create = PRS
+    if args.phase:
+        phase_prs = {
+            1: [2, 3, 4, 7, 36, 37, 39],  # Phase 1: Foundation
+            2: [5, 6, 8, 9, 10, 11, 12, 13],  # Phase 2: Core Features
+            3: [14, 15, 16, 17, 18, 19],  # Phase 3: Cognitive
+            4: [20, 21, 22, 23],  # Phase 4: Physical
+            5: [24, 25, 26, 27],  # Phase 5: Intelligence
+            6: [28, 29, 30],  # Phase 6: Advanced
+            7: [31, 32, 33, 34, 35],  # Phase 7: Beta Release
+            8: [36, 37, 38, 39, 40],  # Cross-cutting
+        }
+        phase_numbers = phase_prs.get(args.phase, [])
+        prs_to_create = [pr for pr in PRS if pr.number in phase_numbers]
+        print(f"Phase {args.phase} selected: {len(prs_to_create)} issues")
+    
+    print("CortexOS Issue Creator")
+    print("=" * 50)
+    print(f"Total PRs to create: {len(prs_to_create)}")
+    
+    if args.dry_run:
+        print("\n🔍 DRY RUN MODE - No issues will be created\n")
+        print("=" * 50)
+        for pr in prs_to_create:
+            title = f"PR #{pr.number}: {pr.title}"
+            print(f"\n📝 Would create: {title}")
+            print(f"   Milestone: {pr.milestone}")
+            print(f"   Priority: {pr.priority}")
+            print(f"   Size: {pr.size}")
+            print(f"   Labels: {', '.join(pr.labels)}")
+            if pr.dependencies:
+                print(f"   Dependencies: PR #{', #'.join(map(str, pr.dependencies))}")
+            print(f"   Tasks: {len(pr.tasks)} tasks")
+        print("\n" + "=" * 50)
+        print(f"Summary: {len(prs_to_create)} issues would be created")
+        print("To actually create issues, run without --dry-run")
+        return
+
     # Get GitHub token
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
-        print("Error: GITHUB_TOKEN environment variable not set")
+        print("\nError: GITHUB_TOKEN environment variable not set")
         print("Set it with: export GITHUB_TOKEN=your_token_here")
+        print("\nTo preview without creating, use: --dry-run")
         sys.exit(1)
 
     # Initialize GitHub client
-    g = Github(token)
-    repo = g.get_repo("therenansimoes/cortexOS")
+    try:
+        Github = import_github()
+        if Github is None:
+            print("\nError: PyGithub not installed.")
+            print("Install it with: pip install PyGithub")
+            sys.exit(1)
+            
+        g = Github(token)
+        repo = g.get_repo("therenansimoes/cortexOS")
+        print(f"Repository: {repo.full_name}")
+    except Exception as e:
+        print(f"\nError connecting to GitHub: {e}")
+        print("Please check your GITHUB_TOKEN and internet connection")
+        sys.exit(1)
 
-    print("CortexOS Issue Creator")
-    print("=" * 50)
-    print(f"Repository: {repo.full_name}")
-    print(f"Total PRs to create: {len(PRS)}")
     print()
 
     # Ask for confirmation
-    response = input(f"Create {len(PRS)} issues? (y/N): ")
+    response = input(f"Create {len(prs_to_create)} issues? (y/N): ")
     if response.lower() != "y":
         print("Cancelled.")
         sys.exit(0)
 
     # Create issues
     created = 0
-    for pr in PRS:
+    failed = 0
+    for pr in prs_to_create:
         title = f"PR #{pr.number}: {pr.title}"
         body = create_issue_body(pr)
 
@@ -845,9 +904,12 @@ def main():
         except Exception as e:
             print(f"✗ Failed: {title}")
             print(f"  Error: {e}")
+            failed += 1
 
     print()
-    print(f"Created {created}/{len(PRS)} issues successfully!")
+    print(f"Created {created}/{len(prs_to_create)} issues successfully!")
+    if failed > 0:
+        print(f"Failed to create {failed} issues")
 
 
 if __name__ == "__main__":

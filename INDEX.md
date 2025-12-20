@@ -11,7 +11,14 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
    - Quick overview of all 40 PRs
    - Next steps
 
-2. **[PLAN_README.md](./PLAN_README.md)**
+2. **[QUICK_START_ISSUES.md](./QUICK_START_ISSUES.md)** 🚀 CREATE ISSUES NOW
+   - Step-by-step guide to create GitHub issues
+   - Preview mode (no setup required)
+   - Phase-by-phase creation
+   - Troubleshooting
+   - **Length**: ~200 lines
+
+3. **[PLAN_README.md](./PLAN_README.md)**
    - Quick reference guide
    - Phase overview table
    - Getting started instructions
@@ -52,27 +59,47 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
    - **Length**: 314 lines
 
 ### Automation
-7. **[.github/ISSUE_TEMPLATE/pr-task.md](./.github/ISSUE_TEMPLATE/pr-task.md)**
-   - GitHub issue template
-   - Standard structure for PR tracking
+7. **[ISSUES_SUMMARY.md](./ISSUES_SUMMARY.md)** 📋 WHAT WILL BE CREATED
+   - Summary of all 40 issues
+   - Distribution by milestone, priority, size
+   - Dependency graph
+   - Labels and organization
+   - **Length**: ~300 lines
 
-8. **[tools/create-pr-issues.sh](./tools/create-pr-issues.sh)**
-   - Bash script using GitHub CLI
-   - Interactive phase selection
-   - Creates issues automatically
+8. **[tools/README.md](./tools/README.md)** 🛠️ TOOLS DOCUMENTATION
+   - Complete guide to all automation tools
+   - Python, Bash, and JSON options
+   - Setup instructions
+   - Troubleshooting
+   - **Length**: ~250 lines
 
-9. **[tools/create-issues.py](./tools/create-issues.py)**
-   - Python script using PyGithub
-   - Bulk issue creation
-   - Programmatic approach
+9. **[tools/pr-definitions.json](./tools/pr-definitions.json)**
+   - JSON data file with all 40 PRs
+   - Can be used with custom scripts
+   - Machine-readable format
+
+10. **[.github/ISSUE_TEMPLATE/pr-task.md](./.github/ISSUE_TEMPLATE/pr-task.md)**
+    - GitHub issue template
+    - Standard structure for PR tracking
+
+11. **[tools/create-pr-issues.sh](./tools/create-pr-issues.sh)**
+    - Bash script using GitHub CLI
+    - Interactive phase selection
+    - Creates issues automatically
+
+12. **[tools/create-issues.py](./tools/create-issues.py)**
+    - Python script using PyGithub
+    - Bulk issue creation
+    - Programmatic approach
+    - **Features**: --dry-run, --phase options
 
 ### Project Documentation
-10. **[README.md](./README.md)** - CortexOS Blueprint
+13. **[README.md](./README.md)** - CortexOS Blueprint
     - Original vision and design
     - Architecture principles
     - Milestone descriptions
 
-11. **[AGENTS.md](./AGENTS.md)** - Development Guidelines
+14. **[AGENTS.md](./AGENTS.md)** - Development Guidelines
     - ZERO MOCK policy
     - Quick commands
     - Project structure
@@ -100,9 +127,11 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
 3. [WORK_PLAN.md](./WORK_PLAN.md) - Critical path
 
 ### "I want to create GitHub issues"
-1. [HOW_TO_CREATE_PRS.md](./HOW_TO_CREATE_PRS.md) - Three options explained
-2. Run `./tools/create-pr-issues.sh` or `python3 tools/create-issues.py`
-3. Or use `.github/ISSUE_TEMPLATE/pr-task.md` manually
+1. [QUICK_START_ISSUES.md](./QUICK_START_ISSUES.md) - Quickest path
+2. [ISSUES_SUMMARY.md](./ISSUES_SUMMARY.md) - What will be created
+3. [tools/README.md](./tools/README.md) - Detailed tool documentation
+4. Run `python3 tools/create-issues.py --dry-run` to preview
+5. Run `python3 tools/create-issues.py --phase 1` to create Phase 1
 
 ## 📊 Plan Statistics
 
@@ -122,7 +151,10 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
 | ROADMAP.md | 340 | Visual overview |
 | HOW_TO_CREATE_PRS.md | 314 | Step-by-step guide |
 | WORK_PLAN.md | 305 | Timeline & resources |
+| ISSUES_SUMMARY.md | 300 | What will be created |
+| tools/README.md | 250 | Tools documentation |
 | SUMMARY.md | 248 | Executive summary |
+| QUICK_START_ISSUES.md | 200 | Create issues now |
 | PLAN_README.md | 188 | Quick reference |
 | README.md | 338* | Project blueprint |
 | AGENTS.md | 118* | Dev guidelines |
@@ -132,6 +164,12 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
 ## 🏃 Quick Commands
 
 ```bash
+# Preview all 40 issues (no setup needed!)
+python3 tools/create-issues.py --dry-run
+
+# Preview Phase 1 only
+python3 tools/create-issues.py --dry-run --phase 1
+
 # View the summary
 cat SUMMARY.md
 
@@ -139,10 +177,10 @@ cat SUMMARY.md
 cat ROADMAP.md
 
 # Create issues for Phase 1
-./tools/create-pr-issues.sh
+export GITHUB_TOKEN=your_token
+python3 tools/create-issues.py --phase 1
 
 # Create all issues at once
-export GITHUB_TOKEN=your_token
 python3 tools/create-issues.py
 
 # Start working on PR #2

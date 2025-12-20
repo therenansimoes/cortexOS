@@ -1,0 +1,77 @@
+name: WASI Build Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  wasi-build:
+    name: Check WASI Compatibility
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-wasip1
+        
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo index
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Cache cargo build
+      uses: actions/cache@v3
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-wasi-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Build cortex-core for WASI
+      run: |
+        cargo build --package cortex-core --target wasm32-wasip1 --release
+        
+    - name: Check binary size
+      run: |
+        SIZE=$(stat -c%s target/wasm32-wasip1/release/libcortex_core.rlib)
+        SIZE_MB=$(echo "scale=2; $SIZE / 1048576" | bc)
+        echo "cortex-core WASI build size: $SIZE_MB MB"
+        
+        if [ $SIZE -gt 1048576 ]; then
+          echo "❌ Error: WASI build too large: $SIZE bytes (max 1MB)"
+          exit 1
+        else
+          echo "✅ WASI build size OK: $SIZE bytes"
+        fi
+        
+    - name: Build WASM demo
+      run: |
+        cargo build --package wasm-demo --target wasm32-wasip1 --release
+        
+    - name: Check WASM demo size
+      run: |
+        SIZE=$(stat -c%s target/wasm32-wasip1/release/wasm_demo.wasm)
+        SIZE_KB=$(echo "scale=2; $SIZE / 1024" | bc)
+        echo "WASM demo size: $SIZE_KB KB"
+        
+        if [ $SIZE -gt 102400 ]; then
+          echo "⚠️  Warning: WASM demo larger than 100KB: $SIZE bytes"
+        else
+          echo "✅ WASM demo size OK: $SIZE bytes"
+        fi
+        
+    - name: Test WASI build compiles
+      run: |
+        # Just verify it compiles, don't need to run tests in WASI yet
+        cargo check --package cortex-core --target wasm32-wasip1

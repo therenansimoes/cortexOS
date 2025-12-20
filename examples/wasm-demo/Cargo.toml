@@ -1,0 +1,10 @@
+[package]
+name = "wasm-demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-core = { path = "../../crates/core" }
+
+[lib]
+crate-type = ["cdylib"]

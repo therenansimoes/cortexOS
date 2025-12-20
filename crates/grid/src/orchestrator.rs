@@ -109,7 +109,7 @@ impl GridOrchestrator {
                     ))
                     .await;
             }
-            return Err(GridError::EventBusError(e.to_string()).into());
+            return Err(GridError::EventBusError(e.to_string()));
         }
 
         // Send acceptance
@@ -187,7 +187,7 @@ impl GridOrchestrator {
             .await;
 
         if peers.is_empty() {
-            return Err(GridError::NoPeersAvailable.into());
+            return Err(GridError::NoPeersAvailable);
         }
 
         // Select peer with lowest latency (or first if no latency info)

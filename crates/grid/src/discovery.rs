@@ -321,7 +321,7 @@ impl KademliaDiscovery {
         );
 
         // Listen on all interfaces
-        let listen_addr: Multiaddr = format!("/ip4/0.0.0.0/tcp/0")
+        let listen_addr: Multiaddr = "/ip4/0.0.0.0/tcp/0"
             .parse()
             .map_err(|e| GridError::DiscoveryError(format!("Invalid listen address: {}", e)))?;
 

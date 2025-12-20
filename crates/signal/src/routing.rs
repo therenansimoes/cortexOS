@@ -1,3 +1,102 @@
+//! Multi-hop routing for signal-based mesh networks.
+//!
+//! This module provides routing capabilities for CortexOS's signal layer,
+//! enabling messages to be forwarded across multiple physical nodes in a
+//! mesh network topology.
+//!
+//! # Overview
+//!
+//! Multi-hop communication allows nodes to send signals to destinations
+//! beyond their direct communication range by relaying through intermediate
+//! nodes. This is crucial for:
+//!
+//! - **Extended range**: Reach distant nodes via relay chains
+//! - **Mesh networking**: Self-organizing, resilient topologies  
+//! - **Swarm coordination**: Enable cooperation among distributed devices
+//! - **Path diversity**: Multiple routes for reliability
+//!
+//! # Key Components
+//!
+//! - [`Route`]: A path from source to destination through intermediate hops
+//! - [`RouteHop`]: Single hop in a route (node + channel + metrics)
+//! - [`MultiHopRouter`]: Manages routing tables and message forwarding
+//! - [`MultiHopMessage`]: Message with routing metadata (TTL, hop count, path)
+//! - [`RouteDiscoveryRequest`]/[`RouteDiscoveryReply`]: Dynamic route finding
+//!
+//! # Example
+//!
+//! ```rust
+//! use cortex_core::NodeId;
+//! use cortex_signal::routing::{Route, RouteHop, MultiHopRouter, MultiHopMessage};
+//! use cortex_signal::{Channel, Signal, SignalPattern};
+//!
+//! # async fn example() {
+//! // Create a 3-node route: A -> B -> C
+//! let node_a = NodeId::generate();
+//! let node_b = NodeId::generate();
+//! let node_c = NodeId::generate();
+//!
+//! let route = Route::new(
+//!     node_a,
+//!     node_c,
+//!     vec![
+//!         RouteHop::new(node_b, Channel::Ble).with_latency(1000),
+//!         RouteHop::new(node_c, Channel::Light).with_latency(1500),
+//!     ],
+//! );
+//!
+//! // Create router and install route
+//! let router = MultiHopRouter::new(node_a);
+//! router.add_route(route).await;
+//!
+//! // Create and route a message
+//! # let signal = Signal::new(
+//! #     cortex_core::SymbolId::from_bytes(b"TEST"),
+//! #     SignalPattern::empty(),
+//! #     Channel::Ble
+//! # );
+//! let message = MultiHopMessage::new(node_a, node_c, signal);
+//! let next_hop = router.route_message(&message).await.ok();
+//! # }
+//! ```
+//!
+//! # Route Quality
+//!
+//! Routes are scored based on:
+//! - **Success rate** (60%): Delivery success vs. failures
+//! - **Hop count** (30%): Shorter paths preferred
+//! - **Age** (10%): Fresher routes preferred
+//!
+//! Quality score ranges from 0.0 (worst) to 1.0 (best).
+//!
+//! # TTL and Loop Prevention
+//!
+//! Messages have a TTL (Time To Live) that decrements at each hop.
+//! When TTL reaches 0, the message is dropped. This prevents infinite
+//! loops in case of routing errors or topology changes.
+//!
+//! Default TTL: 7 hops  
+//! Maximum hop count: 15 hops
+//!
+//! # Route Discovery
+//!
+//! Dynamic route discovery allows nodes to find paths to destinations:
+//!
+//! ```rust
+//! # use cortex_core::NodeId;
+//! # use cortex_signal::routing::MultiHopRouter;
+//! # async fn example() {
+//! # let node_a = NodeId::generate();
+//! # let node_d = NodeId::generate();
+//! let router = MultiHopRouter::new(node_a);
+//! let request = router.discover_route(node_d).await;
+//!
+//! // Request propagates through network
+//! // Nodes along the path respond with RouteDiscoveryReply
+//! // containing the discovered path
+//! # }
+//! ```
+
 use cortex_core::NodeId;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};

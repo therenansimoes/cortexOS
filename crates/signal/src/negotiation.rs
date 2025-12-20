@@ -150,7 +150,7 @@ impl ChannelNegotiator {
     pub async fn probe_channel<E: Emitter, R: Receiver>(
         &self,
         emitter: &E,
-        receiver: &R,
+        _receiver: &R,
     ) -> ChannelQuality {
         let channel = emitter.channel();
         let start = std::time::Instant::now();

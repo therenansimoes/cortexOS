@@ -10,9 +10,7 @@
 //! the `ble` feature is enabled. This module is not available on WASM targets.
 
 use async_trait::async_trait;
-use btleplug::api::{
-    Central, Manager as _, ScanFilter,
-};
+use btleplug::api::{Central, Manager as _};
 use btleplug::platform::{Adapter, Manager};
 use std::sync::Arc;
 use std::time::Duration;
@@ -150,7 +148,7 @@ impl BleReceiver {
         let adapter = self.adapter.lock().await;
 
         adapter
-            .start_scan(ScanFilter::default())
+            .start_scan(btleplug::api::ScanFilter::default())
             .await
             .map_err(|e| ReceiveError::HardwareError(format!("Failed to start BLE scan: {}", e)))?;
 

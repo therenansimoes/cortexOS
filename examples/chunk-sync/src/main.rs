@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Node 1 stores all chunks
     println!("Node 1: Storing chunks in sync manager...");
-    for (hash, chunk_events) in &chunks {
+    for (hash, _chunk_events) in &chunks {
         let serialized = chunk_store.serialize_chunk(hash)?;
         node1_sync.handle_chunk_put(*hash, serialized).await?;
     }
@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Node 2 has some chunks (simulate partial sync state)
     println!("Node 2: Simulating partial state (first 2 chunks)...");
-    for (hash, chunk_events) in chunks.iter().take(2) {
+    for (hash, _chunk_events) in chunks.iter().take(2) {
         let serialized = chunk_store.serialize_chunk(hash)?;
         node2_sync.handle_chunk_put(*hash, serialized).await?;
     }
@@ -137,7 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sync_manager.start_sync(node1_id, 10);
 
     // Simulate progress updates
-    for i in 0..5 {
+    for _i in 0..5 {
         tokio::time::sleep(Duration::from_millis(100)).await;
         sync_manager.update_sync_progress(&node1_id, 2, 0, 2048);
 

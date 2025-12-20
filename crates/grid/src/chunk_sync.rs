@@ -367,9 +367,6 @@ impl DeltaSyncProtocol {
                     failed += 1;
                 }
             }
-
-            self.sync_manager
-                .update_sync_progress(&peer_id, 0, 0, 0);
         }
 
         self.sync_manager

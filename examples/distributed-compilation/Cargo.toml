@@ -1,0 +1,18 @@
+[package]
+name = "example-distributed-compilation"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "distributed-compilation"
+path = "src/main.rs"
+
+[dependencies]
+cortex-core = { path = "../../crates/core" }
+cortex-agent = { path = "../../crates/agent" }
+cortex-grid = { path = "../../crates/grid" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

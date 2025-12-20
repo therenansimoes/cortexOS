@@ -1031,6 +1031,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-distributed-compilation"
+version = "0.1.0"
+dependencies = [
+ "cortex-agent",
+ "cortex-core",
+ "cortex-grid",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "example-heartbeat"
 version = "0.1.0"
 dependencies = [

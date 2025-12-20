@@ -17,7 +17,7 @@ pub use types::{
 };
 
 pub mod prelude {
-    pub use crate::builtin::{HeartbeatAgent, LoggerAgent, RelayAgent};
+    pub use crate::builtin::{HeartbeatAgent, LoggerAgent, RelayAgent, CompilerAgent, PlannerAgent};
     pub use crate::context::AgentContext;
     pub use crate::error::AgentError;
     pub use crate::intention::{Intention, IntentionManager, IntentionStatus};

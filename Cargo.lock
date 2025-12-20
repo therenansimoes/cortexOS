@@ -613,6 +613,7 @@ dependencies = [
  "ed25519-dalek",
  "futures",
  "libp2p",
+ "parking_lot",
  "rand 0.8.5",
  "serde",
  "serde-big-array",

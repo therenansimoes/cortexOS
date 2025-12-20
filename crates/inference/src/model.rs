@@ -363,8 +363,10 @@ pub mod llama {
         async fn complete(&self, prompt: &str, params: &GenerationParams) -> Result<String> {
             self.ensure_loaded()?;
 
-            let model = self.model.as_ref().expect("Model should be loaded after ensure_loaded check");
-            let backend = self.backend.as_ref().expect("Backend should be loaded after ensure_loaded check");
+            let model = self.model.as_ref()
+                .ok_or_else(|| crate::error::InferenceError::ModelNotLoaded("Model not initialized".to_string()))?;
+            let backend = self.backend.as_ref()
+                .ok_or_else(|| crate::error::InferenceError::ModelNotLoaded("Backend not initialized".to_string()))?;
             
             // Create context for this inference
             let ctx_params = LlamaContextParams::default()
@@ -468,8 +470,10 @@ pub mod llama {
         async fn embed(&self, text: &str) -> Result<Vec<f32>> {
             self.ensure_loaded()?;
 
-            let model = self.model.as_ref().expect("Model should be loaded after ensure_loaded check");
-            let backend = self.backend.as_ref().expect("Backend should be loaded after ensure_loaded check");
+            let model = self.model.as_ref()
+                .ok_or_else(|| crate::error::InferenceError::ModelNotLoaded("Model not initialized".to_string()))?;
+            let backend = self.backend.as_ref()
+                .ok_or_else(|| crate::error::InferenceError::ModelNotLoaded("Backend not initialized".to_string()))?;
 
             // Create context for embedding
             let ctx_params = LlamaContextParams::default()
@@ -512,7 +516,8 @@ pub mod llama {
         fn tokenize(&self, text: &str) -> Result<Vec<u32>> {
             self.ensure_loaded()?;
 
-            let model = self.model.as_ref().expect("Model should be loaded after ensure_loaded check");
+            let model = self.model.as_ref()
+                .ok_or_else(|| crate::error::InferenceError::ModelNotLoaded("Model not initialized".to_string()))?;
             let tokens = model.str_to_token(text, AddBos::Always)
                 .map_err(|e| crate::error::InferenceError::TokenizationError(format!("Tokenization failed: {}", e)))?;
 

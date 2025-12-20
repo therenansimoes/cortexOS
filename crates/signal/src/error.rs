@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::Channel;
+use crate::signal::Channel;
 
 #[derive(Debug, Error)]
 pub enum SignalError {
@@ -63,6 +63,12 @@ pub enum DecodeError {
 
     #[error("signal error: {0}")]
     Signal(#[from] SignalError),
+}
+
+impl From<EmitError> for DecodeError {
+    fn from(e: EmitError) -> Self {
+        DecodeError::Signal(SignalError::CodecError(e.to_string()))
+    }
 }
 
 #[derive(Debug, Error)]

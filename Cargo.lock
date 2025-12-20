@@ -694,6 +694,15 @@ version = "0.1.0"
 [[package]]
 name = "cortex-signal"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "cortex-core",
+ "rand 0.8.5",
+ "serde",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "cortex-skill"
@@ -2444,6 +2453,17 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "multi-hop-demo"
+version = "0.1.0"
+dependencies = [
+ "cortex-core",
+ "cortex-signal",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

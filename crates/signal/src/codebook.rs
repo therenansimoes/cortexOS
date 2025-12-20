@@ -203,7 +203,15 @@ impl Codebook {
     }
 
     fn pattern_to_key(&self, pattern: &SignalPattern) -> Vec<u8> {
-        bincode::serialize(pattern).unwrap_or_default()
+        pattern
+            .pulses
+            .iter()
+            .flat_map(|p| {
+                let mut v = vec![if p.on { 1u8 } else { 0u8 }];
+                v.extend_from_slice(&p.duration_us.to_le_bytes());
+                v
+            })
+            .collect()
     }
 }
 

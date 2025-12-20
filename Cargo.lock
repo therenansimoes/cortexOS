@@ -336,6 +336,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ble-signal-example"
+version = "0.1.0"
+dependencies = [
+ "cortex-core",
+ "cortex-signal",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

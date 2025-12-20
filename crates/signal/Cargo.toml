@@ -2,3 +2,23 @@
 name = "cortex-signal"
 version.workspace = true
 edition.workspace = true
+
+[dependencies]
+cortex-core = { path = "../core" }
+
+# Async runtime
+tokio.workspace = true
+async-trait.workspace = true
+
+# Serialization
+serde.workspace = true
+bincode.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "signal-evolution-example"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "signal-evolution"
+path = "main.rs"
+
+[dependencies]
+cortex-core = { path = "../../crates/core" }
+cortex-signal = { path = "../../crates/signal" }
+
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rand = { workspace = true }

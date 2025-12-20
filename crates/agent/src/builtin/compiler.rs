@@ -234,10 +234,10 @@ mod tests {{
         format!(
             r#""""
 {}
-""""
+"""
 
 def execute():
-    """"Execute the task""""
+    """Execute the task"""
     # TODO: Implement task logic
     pass
 
@@ -265,6 +265,10 @@ module.exports = {{ execute }};
     }
 
     /// Validate generated code
+    /// 
+    /// Note: This is a basic heuristic validation. For production use,
+    /// this should be replaced with actual syntax parsers and linters
+    /// for each language (e.g., syn for Rust, ast for Python).
     fn validate_code(&self, code: &str, language: &str) -> CodeQualityMetrics {
         let mut metrics = CodeQualityMetrics {
             syntax_valid: false,
@@ -274,35 +278,116 @@ module.exports = {{ execute }};
             overall_score: 0.0,
         };
 
-        // Basic syntax validation (simplified)
-        metrics.syntax_valid = !code.is_empty() && code.len() > 10;
+        // Basic syntax validation - checks structure, not actual parsing
+        // In production, integrate with language-specific parsers
+        metrics.syntax_valid = self.basic_syntax_check(code, language);
 
-        // Check for documentation
-        metrics.has_documentation = match language.to_lowercase().as_str() {
-            "rust" => code.contains("///") || code.contains("//!"),
-            "python" => code.contains("\"\"\"") || code.contains("'''"),
-            "javascript" | "typescript" => code.contains("/**") || code.contains("//"),
-            _ => false,
-        };
+        // Check for documentation (more robust pattern matching)
+        metrics.has_documentation = self.check_documentation(code, language);
 
-        // Check for error handling
-        metrics.has_error_handling = match language.to_lowercase().as_str() {
-            "rust" => code.contains("Result") || code.contains("?") || code.contains("unwrap"),
-            "python" => code.contains("try:") || code.contains("except"),
-            "javascript" | "typescript" => code.contains("try") || code.contains("catch"),
-            _ => false,
-        };
+        // Check for error handling patterns (context-aware)
+        metrics.has_error_handling = self.check_error_handling(code, language);
 
         // Check for basic conventions
-        metrics.follows_conventions = match language.to_lowercase().as_str() {
-            "rust" => code.contains("fn ") || code.contains("pub "),
-            "python" => code.contains("def "),
-            "javascript" | "typescript" => code.contains("function ") || code.contains("const "),
-            _ => false,
-        };
+        metrics.follows_conventions = self.check_conventions(code, language);
 
         metrics.calculate_score();
         metrics
+    }
+
+    fn basic_syntax_check(&self, code: &str, language: &str) -> bool {
+        if code.is_empty() || code.len() < 10 {
+            return false;
+        }
+
+        match language.to_lowercase().as_str() {
+            "rust" => {
+                // Check for basic Rust structure
+                (code.contains("fn ") || code.contains("pub fn "))
+                    && code.contains('{')
+                    && code.contains('}')
+            }
+            "python" => {
+                // Check for basic Python structure
+                code.contains("def ") && code.contains(':')
+            }
+            "javascript" | "typescript" => {
+                // Check for basic JS structure
+                (code.contains("function ") || code.contains("const ") || code.contains("=>"))
+                    && code.contains('{')
+                    && code.contains('}')
+            }
+            _ => code.len() > 10,
+        }
+    }
+
+    fn check_documentation(&self, code: &str, language: &str) -> bool {
+        match language.to_lowercase().as_str() {
+            "rust" => {
+                // Look for doc comments at start of lines
+                code.lines().any(|line| {
+                    let trimmed = line.trim();
+                    trimmed.starts_with("///") || trimmed.starts_with("//!")
+                })
+            }
+            "python" => {
+                // Look for docstrings (triple quotes)
+                code.contains(r#"""""#) || code.contains("'''")
+            }
+            "javascript" | "typescript" => {
+                // Look for JSDoc comments
+                code.lines().any(|line| {
+                    let trimmed = line.trim();
+                    trimmed.starts_with("/**") || trimmed.starts_with("*")
+                })
+            }
+            _ => false,
+        }
+    }
+
+    fn check_error_handling(&self, code: &str, language: &str) -> bool {
+        match language.to_lowercase().as_str() {
+            "rust" => {
+                // Check for Result type or error handling operators
+                // Avoid false positives from comments by checking actual code context
+                let has_result = code.contains("-> Result<");
+                let has_question = code.lines().any(|line| {
+                    let trimmed = line.trim();
+                    !trimmed.starts_with("//") && trimmed.contains('?')
+                });
+                has_result || has_question
+            }
+            "python" => {
+                // Look for try-except blocks
+                code.lines().any(|line| {
+                    let trimmed = line.trim();
+                    trimmed.starts_with("try:") || trimmed.starts_with("except")
+                })
+            }
+            "javascript" | "typescript" => {
+                // Look for try-catch blocks
+                code.contains("try") && code.contains("catch")
+            }
+            _ => false,
+        }
+    }
+
+    fn check_conventions(&self, code: &str, language: &str) -> bool {
+        match language.to_lowercase().as_str() {
+            "rust" => {
+                // Check for function definitions and visibility modifiers
+                code.contains("fn ") || code.contains("pub ")
+            }
+            "python" => {
+                // Check for function definitions
+                code.contains("def ")
+            }
+            "javascript" | "typescript" => {
+                // Check for modern JS patterns
+                code.contains("function ") || code.contains("const ") || code.contains("=>")
+            }
+            _ => false,
+        }
     }
 
     /// Simulate compilation check

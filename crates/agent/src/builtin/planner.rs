@@ -12,20 +12,15 @@ use crate::traits::Agent;
 use crate::types::{AgentId, CapabilitySet, Event, IntentionId, ThoughtContent};
 
 /// Planning strategy for goal decomposition
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum PlanningStrategy {
     /// Sequential: execute subgoals one after another
     Sequential,
     /// Parallel: execute all subgoals concurrently
     Parallel,
     /// Adaptive: let the planner decide based on dependencies
+    #[default]
     Adaptive,
-}
-
-impl Default for PlanningStrategy {
-    fn default() -> Self {
-        Self::Adaptive
-    }
 }
 
 /// A planned task with metadata

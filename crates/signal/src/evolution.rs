@@ -220,6 +220,10 @@ impl EvolutionEngine {
     fn mutate_pattern(&self, pattern: &SignalPattern) -> SignalPattern {
         let mut rng = rand::thread_rng();
         let mut pulses = pattern.pulses.clone();
+        
+        // Cache range values to avoid repeated casting
+        let min_duration = self.config.pulse_duration_range.0 as i32;
+        let max_duration = self.config.pulse_duration_range.1 as i32;
 
         // Randomly mutate pulses
         for pulse in &mut pulses {
@@ -227,10 +231,7 @@ impl EvolutionEngine {
                 // Mutate duration
                 let delta = rng.gen_range(-100..=100);
                 pulse.duration_us = (pulse.duration_us as i32 + delta)
-                    .clamp(
-                        self.config.pulse_duration_range.0 as i32,
-                        self.config.pulse_duration_range.1 as i32,
-                    ) as u32;
+                    .clamp(min_duration, max_duration) as u32;
             }
             if rng.gen::<f32>() < self.config.mutation_rate / 2.0 {
                 // Flip on/off

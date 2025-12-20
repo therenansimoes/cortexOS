@@ -192,6 +192,8 @@ fn simulate_communication_success(pattern: &SignalPattern, round: usize) -> bool
     // Also require reasonable pattern length
     let length_ok = pattern.pulse_count() >= 2 && pattern.pulse_count() <= 10;
 
+    // Note: Using rand::random() for demo simplicity. For reproducible testing,
+    // use a seeded RNG like `StdRng::seed_from_u64()`
     length_ok && rand::random::<f32>() < success_prob
 }
 

@@ -108,9 +108,10 @@ impl SignalTemplate {
 
     pub fn record_usage(&mut self, success: bool) {
         self.usage_count += 1;
-        let prev_success = (self.success_rate * (self.usage_count - 1) as f32) / self.usage_count as f32;
+        // Calculate weighted average: (previous_total_successes + current) / total_count
+        let prev_total_successes = self.success_rate * (self.usage_count - 1) as f32;
         let current_success = if success { 1.0 } else { 0.0 };
-        self.success_rate = prev_success + (current_success / self.usage_count as f32);
+        self.success_rate = (prev_total_successes + current_success) / self.usage_count as f32;
     }
 }
 

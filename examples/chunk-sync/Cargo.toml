@@ -1,0 +1,12 @@
+[package]
+name = "chunk-sync"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-grid = { path = "../../crates/grid" }
+cortex-storage = { path = "../../crates/storage" }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

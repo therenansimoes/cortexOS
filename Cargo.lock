@@ -439,6 +439,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "chunk-sync"
+version = "0.1.0"
+dependencies = [
+ "cortex-grid",
+ "cortex-storage",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "cipher"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -25,7 +25,8 @@ You can download GGUF models from Hugging Face. For example:
 mkdir -p models
 
 # Download TinyLlama (small, good for testing)
-wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O models/tinyllama.gguf
+wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf \
+  -O models/tinyllama.gguf
 ```
 
 Other recommended models:

@@ -35,6 +35,12 @@ pub enum GridError {
     #[error("discovery error: {0}")]
     DiscoveryError(String),
 
+    #[error("event bus error: {0}")]
+    EventBusError(String),
+
+    #[error("no peers available")]
+    NoPeersAvailable,
+
     #[error("timeout")]
     Timeout,
 

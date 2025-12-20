@@ -5,6 +5,9 @@ pub struct NodeConfig {
     pub port: u16,
     pub data_dir: PathBuf,
     pub skills: Vec<String>,
+    pub enable_kademlia: bool,
+    pub enable_orchestrator: bool,
+    pub can_compute: bool,
 }
 
 impl NodeConfig {
@@ -37,6 +40,9 @@ impl NodeConfig {
             port,
             data_dir,
             skills,
+            enable_kademlia: true,      // Default to enabled
+            enable_orchestrator: true,   // Default to enabled
+            can_compute: true,           // Default to enabled
         }
     }
 }

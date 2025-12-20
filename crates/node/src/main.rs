@@ -5,9 +5,13 @@ use clap::{Parser, Subcommand};
 use tokio::sync::RwLock;
 use tracing::{info, Level};
 
-use cortex_grid::{NodeId, RelayNode, LanDiscovery, Discovery, PeerStore, PeerInfo};
+use cortex_grid::{
+    Capabilities, Discovery, GridOrchestrator, KademliaDiscovery, LanDiscovery, NodeId, PeerInfo,
+    PeerStore, RelayNode,
+};
 use cortex_reputation::{TrustGraph, SkillId};
 use cortex_skill::NetworkSkillRegistry;
+use cortex_core::runtime::{EventBus, Runtime};
 
 mod config;
 mod network;
@@ -36,6 +40,18 @@ struct Cli {
     /// Skills this node provides (comma-separated)
     #[arg(short, long)]
     skills: Option<String>,
+
+    /// Enable Kademlia wide-area discovery
+    #[arg(long, default_value = "true")]
+    kademlia: bool,
+
+    /// Enable grid orchestrator
+    #[arg(long, default_value = "true")]
+    orchestrator: bool,
+
+    /// Enable compute capability
+    #[arg(long, default_value = "true")]
+    compute: bool,
 }
 
 #[derive(Subcommand)]
@@ -59,7 +75,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_target(false)
         .init();
 
-    let config = NodeConfig::new(cli.name, cli.port, cli.data_dir, cli.skills);
+    let mut config = NodeConfig::new(cli.name, cli.port, cli.data_dir, cli.skills);
+    config.enable_kademlia = cli.kademlia;
+    config.enable_orchestrator = cli.orchestrator;
+    config.can_compute = cli.compute;
 
     match cli.command {
         Some(Commands::Start) | None => {
@@ -101,6 +120,10 @@ async fn run_daemon(config: NodeConfig) -> Result<(), Box<dyn std::error::Error>
     let peer_store = Arc::new(PeerStore::new(Duration::from_secs(120)));
     let trust_graph = Arc::new(RwLock::new(TrustGraph::new(node_id)));
     let skill_registry = Arc::new(RwLock::new(NetworkSkillRegistry::new(node_id)));
+    
+    // Initialize event bus and runtime for orchestrator
+    let event_bus = Arc::new(EventBus::default());
+    let runtime = Arc::new(Runtime::new());
 
     // Register local skills
     if !config.skills.is_empty() {
@@ -111,6 +134,15 @@ async fn run_daemon(config: NodeConfig) -> Result<(), Box<dyn std::error::Error>
         }
         info!("");
     }
+    
+    // Set peer capabilities based on config
+    let local_capabilities = Capabilities {
+        can_relay: true,
+        can_store: false,
+        can_compute: config.can_compute,
+        max_storage_mb: 0,
+    };
+    info!("💪 Node capabilities: compute={}, relay=true", config.can_compute);
 
     // Start relay node (AirTag-style mesh)
     let (relay_node, mut relay_rx) = RelayNode::new(node_id);
@@ -124,6 +156,7 @@ async fn run_daemon(config: NodeConfig) -> Result<(), Box<dyn std::error::Error>
 
     // Spawn discovery handler
     let peer_store_clone = Arc::clone(&peer_store);
+    let local_caps = local_capabilities.clone();
     tokio::spawn(async move {
         while let Some(event) = discovery_rx.recv().await {
             info!("✨ Discovered peer: {} at {:?}", event.peer_id, event.addresses);
@@ -131,9 +164,49 @@ async fn run_daemon(config: NodeConfig) -> Result<(), Box<dyn std::error::Error>
             // Create peer info and insert
             let mut peer = PeerInfo::new(event.peer_id, [0u8; 32]);
             peer.addresses = event.addresses;
+            peer.capabilities = local_caps.clone();
             peer_store_clone.insert(peer).await;
         }
     });
+
+    // Start Kademlia discovery if enabled
+    if config.enable_kademlia {
+        info!("🌐 Starting Kademlia wide-area discovery...");
+        match KademliaDiscovery::new(node_id, pubkey, config.port) {
+            Ok((mut kad_discovery, mut kad_rx)) => {
+                kad_discovery.start().await?;
+                
+                let peer_store_kad = Arc::clone(&peer_store);
+                let local_caps_kad = local_capabilities.clone();
+                tokio::spawn(async move {
+                    while let Some(event) = kad_rx.recv().await {
+                        info!("🌍 Kademlia discovered peer: {} at {:?}", event.peer_id, event.addresses);
+                        
+                        let mut peer = PeerInfo::new(event.peer_id, [0u8; 32]);
+                        peer.addresses = event.addresses;
+                        peer.capabilities = local_caps_kad.clone();
+                        peer_store_kad.insert(peer).await;
+                    }
+                });
+            }
+            Err(e) => {
+                info!("⚠️  Kademlia discovery initialization failed: {}", e);
+            }
+        }
+    }
+
+    // Start Grid Orchestrator if enabled
+    if config.enable_orchestrator {
+        info!("🎯 Starting Grid Orchestrator...");
+        let mut orchestrator = GridOrchestrator::new(
+            node_id,
+            Arc::clone(&peer_store).as_ref().clone(),
+            Arc::clone(&event_bus),
+        );
+        
+        orchestrator.start().await?;
+        info!("✅ Grid Orchestrator started");
+    }
 
     // Spawn relay message handler
     tokio::spawn(async move {

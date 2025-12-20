@@ -2,3 +2,27 @@
 name = "cortex-signal"
 version.workspace = true
 edition.workspace = true
+
+[features]
+default = []
+# BLE support (platform-specific, requires native Bluetooth hardware)
+# Disabled on WASM and unsupported platforms per ZERO MOCK POLICY
+ble = ["btleplug"]
+
+[dependencies]
+cortex-core = { path = "../core" }
+serde = { workspace = true }
+bincode = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+
+# Optional: BLE support (native only)
+btleplug = { version = "0.11", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# No BLE support on WASM
+
+[dev-dependencies]
+tokio = { workspace = true }

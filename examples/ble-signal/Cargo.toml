@@ -1,0 +1,20 @@
+[package]
+name = "ble-signal-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+cortex-signal = { path = "../../crates/signal", features = ["ble"] }
+cortex-core = { path = "../../crates/core" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[[example]]
+name = "ble_emit"
+path = "src/ble_emit.rs"
+
+[[example]]
+name = "ble_receive"
+path = "src/ble_receive.rs"

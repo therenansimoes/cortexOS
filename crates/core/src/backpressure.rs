@@ -567,6 +567,11 @@ mod tests {
         }
         // With n=5 and 20 pushes, should have 4 items (every 5th: 4, 9, 14, 19)
         assert_eq!(queue.len(), 4);
+        // Verify exact values to ensure correct sampling
+        assert_eq!(queue.pop().unwrap().value, 4);
+        assert_eq!(queue.pop().unwrap().value, 9);
+        assert_eq!(queue.pop().unwrap().value, 14);
+        assert_eq!(queue.pop().unwrap().value, 19);
     }
 
     #[test]

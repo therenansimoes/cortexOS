@@ -1,0 +1,9 @@
+[package]
+name = "secure-handshake"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+cortex-grid = { path = "../../crates/grid" }
+ed25519-dalek = { workspace = true }
+rand = { workspace = true }

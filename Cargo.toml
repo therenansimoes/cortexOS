@@ -18,6 +18,7 @@ members = [
     "examples/skill-network",
     "examples/llm-inference",
     "examples/multi-hop-demo",
+    "examples/secure-handshake",
 ]
 
 [workspace.package]

@@ -3,6 +3,17 @@ use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
+use crate::error::{CoreError, Result};
+
+/// Maximum payload size for inline data (1MB)
+const MAX_INLINE_PAYLOAD_SIZE: usize = 1024 * 1024;
+
+/// Maximum length for event kind strings
+const MAX_KIND_LENGTH: usize = 256;
+
+/// Maximum length for event source strings
+const MAX_SOURCE_LENGTH: usize = 256;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EventId(pub Uuid);
 
@@ -96,12 +107,87 @@ impl Event {
         }
     }
 
+    /// Create a validated event with bounds checking
+    pub fn new_validated(source: &str, kind: &str, payload: Payload) -> Result<Self> {
+        // Validate source length
+        if source.is_empty() {
+            return Err(CoreError::InvalidEvent("Event source cannot be empty".to_string()));
+        }
+        if source.len() > MAX_SOURCE_LENGTH {
+            return Err(CoreError::InvalidEvent(format!(
+                "Event source too long: {} > {}",
+                source.len(),
+                MAX_SOURCE_LENGTH
+            )));
+        }
+
+        // Validate kind length
+        if kind.is_empty() {
+            return Err(CoreError::InvalidEvent("Event kind cannot be empty".to_string()));
+        }
+        if kind.len() > MAX_KIND_LENGTH {
+            return Err(CoreError::InvalidEvent(format!(
+                "Event kind too long: {} > {}",
+                kind.len(),
+                MAX_KIND_LENGTH
+            )));
+        }
+
+        // Validate kind format (should be versioned like "sensor.mic.v1")
+        // Must have at least 2 parts separated by dots for basic namespacing
+        let parts: Vec<&str> = kind.split('.').collect();
+        if parts.len() < 2 {
+            return Err(CoreError::InvalidEvent(
+                "Event kind must have at least 2 dot-separated parts (e.g., 'sensor.mic' or 'sensor.mic.v1')".to_string(),
+            ));
+        }
+
+        // Validate payload size for inline payloads
+        if let Payload::Inline(ref data) = payload {
+            if data.len() > MAX_INLINE_PAYLOAD_SIZE {
+                return Err(CoreError::InvalidEvent(format!(
+                    "Inline payload too large: {} > {} bytes",
+                    data.len(),
+                    MAX_INLINE_PAYLOAD_SIZE
+                )));
+            }
+        }
+
+        Ok(Self {
+            id: EventId::new(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+            source: sanitize_string(source),
+            kind: sanitize_string(kind),
+            payload,
+            trace: Trace::default(),
+        })
+    }
+
     pub fn with_trace(mut self, trace_id: &str, span_id: &str) -> Self {
         self.trace = Trace {
             trace_id: Some(trace_id.to_string()),
             span_id: Some(span_id.to_string()),
         };
         self
+    }
+
+    /// Validate event structure
+    pub fn validate(&self) -> Result<()> {
+        if self.source.is_empty() {
+            return Err(CoreError::InvalidEvent("Event source cannot be empty".to_string()));
+        }
+        if self.kind.is_empty() {
+            return Err(CoreError::InvalidEvent("Event kind cannot be empty".to_string()));
+        }
+        if let Payload::Inline(ref data) = self.payload {
+            if data.len() > MAX_INLINE_PAYLOAD_SIZE {
+                return Err(CoreError::InvalidEvent("Inline payload too large".to_string()));
+            }
+        }
+        Ok(())
     }
 
     pub fn kind(&self) -> &str {
@@ -111,6 +197,33 @@ impl Event {
     pub fn source(&self) -> &str {
         &self.source
     }
+}
+
+/// Sanitize a string by removing control characters.
+///
+/// This function filters out control characters from the input string to prevent
+/// injection attacks or display issues. Newlines (`\n`) and tabs (`\t`) are preserved
+/// as they are commonly used in legitimate text data.
+///
+/// # Arguments
+///
+/// * `s` - The input string to sanitize
+///
+/// # Returns
+///
+/// A new string with control characters removed, except for newline and tab.
+///
+/// # Examples
+///
+/// ```ignore
+/// let input = "hello\x00\x01world";
+/// let sanitized = sanitize_string(input);
+/// assert_eq!(sanitized, "helloworld");
+/// ```
+fn sanitize_string(s: &str) -> String {
+    s.chars()
+        .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
+        .collect()
 }
 
 pub type Timestamp = u64;
@@ -185,5 +298,71 @@ mod tests {
         let trace = Trace::default();
         assert!(trace.trace_id.is_none());
         assert!(trace.span_id.is_none());
+    }
+
+    #[test]
+    fn test_event_validation_success() {
+        let event = Event::new_validated("test-source", "sensor.mic.v1", Payload::inline(vec![1, 2, 3]));
+        assert!(event.is_ok());
+    }
+
+    #[test]
+    fn test_event_validation_empty_source() {
+        let result = Event::new_validated("", "sensor.mic.v1", Payload::inline(vec![]));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_event_validation_empty_kind() {
+        let result = Event::new_validated("source", "", Payload::inline(vec![]));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_event_validation_invalid_kind_format() {
+        let result = Event::new_validated("source", "invalid", Payload::inline(vec![]));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_event_validation_long_source() {
+        let long_source = "a".repeat(300);
+        let result = Event::new_validated(&long_source, "test.v1", Payload::inline(vec![]));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_event_validation_long_kind() {
+        let long_kind = "a".repeat(300);
+        let result = Event::new_validated("source", &long_kind, Payload::inline(vec![]));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_event_validation_large_payload() {
+        let large_payload = vec![0u8; 2 * 1024 * 1024]; // 2MB
+        let result = Event::new_validated("source", "test.v1", Payload::inline(large_payload));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sanitize_control_characters() {
+        let source_with_control = "test\x00\x01source";
+        let event = Event::new_validated(source_with_control, "test.v1", Payload::inline(vec![])).unwrap();
+        assert!(!event.source().contains('\x00'));
+        assert!(!event.source().contains('\x01'));
+    }
+
+    #[test]
+    fn test_event_validate_method() {
+        let event = Event::new("source", "kind", Payload::inline(vec![1, 2, 3]));
+        assert!(event.validate().is_ok());
+    }
+
+    #[test]
+    fn test_max_inline_payload_boundary() {
+        let max_size_payload = vec![0u8; MAX_INLINE_PAYLOAD_SIZE];
+        let result = Event::new_validated("source", "test.v1", Payload::inline(max_size_payload));
+        assert!(result.is_ok());
     }
 }

@@ -208,11 +208,7 @@ impl HandshakeContext {
             .map_err(|e| GridError::HandshakeFailed(format!("System time is before UNIX epoch: {}", e)))?
             .as_secs();
 
-        let diff = if now > timestamp {
-            now - timestamp
-        } else {
-            timestamp - now
-        };
+        let diff = now.abs_diff(timestamp);
 
         if diff > MAX_TIMESTAMP_DRIFT_SECS {
             return Err(GridError::HandshakeFailed(
@@ -237,6 +233,17 @@ impl HandshakeContext {
         }
         Ok(())
     }
+}
+
+/// Helper struct to group HELLO message parameters for validation
+struct HelloParams<'a> {
+    protocol_version: u32,
+    node_id: NodeId,
+    pubkey: [u8; 32],
+    capabilities: &'a [u8],
+    x25519_pubkey: [u8; 32],
+    timestamp: u64,
+    signature: &'a [u8],
 }
 
 pub struct Handshaker {
@@ -297,7 +304,15 @@ impl Handshaker {
                 // Validate timestamp for replay attack prevention
                 self.context.validate_timestamp(timestamp)?;
 
-                self.verify_hello(protocol_version, node_id, pubkey, &capabilities, x25519_pubkey, timestamp, &signature)?;
+                self.verify_hello(&HelloParams {
+                    protocol_version,
+                    node_id,
+                    pubkey,
+                    capabilities: &capabilities,
+                    x25519_pubkey,
+                    timestamp,
+                    signature: &signature,
+                })?;
                 self.context.remote_node_id = Some(node_id);
                 self.context.remote_pubkey = Some(pubkey);
                 self.context.remote_x25519_public = Some(PublicKey::from(x25519_pubkey));
@@ -368,40 +383,31 @@ impl Handshaker {
         }
     }
 
-    fn verify_hello(
-        &self,
-        protocol_version: u32,
-        node_id: NodeId,
-        pubkey: [u8; 32],
-        capabilities: &[u8],
-        x25519_pubkey: [u8; 32],
-        timestamp: u64,
-        signature: &[u8],
-    ) -> Result<()> {
-        if protocol_version != PROTOCOL_VERSION {
+    fn verify_hello(&self, params: &HelloParams) -> Result<()> {
+        if params.protocol_version != PROTOCOL_VERSION {
             return Err(GridError::HandshakeFailed(format!(
                 "Protocol version mismatch: expected {}, got {}",
-                PROTOCOL_VERSION, protocol_version
+                PROTOCOL_VERSION, params.protocol_version
             )));
         }
 
-        let expected_node_id = NodeId::from_pubkey(&pubkey);
-        if node_id != expected_node_id {
+        let expected_node_id = NodeId::from_pubkey(&params.pubkey);
+        if params.node_id != expected_node_id {
             return Err(GridError::InvalidNodeId);
         }
 
-        let verifying_key = VerifyingKey::from_bytes(&pubkey)
+        let verifying_key = VerifyingKey::from_bytes(&params.pubkey)
             .map_err(|_| GridError::InvalidSignature)?;
 
         let mut sign_data = Vec::new();
-        sign_data.extend_from_slice(&protocol_version.to_be_bytes());
-        sign_data.extend_from_slice(&node_id.0);
-        sign_data.extend_from_slice(&pubkey);
-        sign_data.extend_from_slice(capabilities);
-        sign_data.extend_from_slice(&x25519_pubkey);
-        sign_data.extend_from_slice(&timestamp.to_be_bytes());
+        sign_data.extend_from_slice(&params.protocol_version.to_be_bytes());
+        sign_data.extend_from_slice(&params.node_id.0);
+        sign_data.extend_from_slice(&params.pubkey);
+        sign_data.extend_from_slice(&params.capabilities);
+        sign_data.extend_from_slice(&params.x25519_pubkey);
+        sign_data.extend_from_slice(&params.timestamp.to_be_bytes());
 
-        let sig_bytes: [u8; 64] = signature
+        let sig_bytes: [u8; 64] = params.signature
             .try_into()
             .map_err(|_| GridError::InvalidSignature)?;
         let sig = Signature::from_bytes(&sig_bytes);

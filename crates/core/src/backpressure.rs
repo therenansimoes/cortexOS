@@ -1,19 +1,112 @@
+//! Backpressure policies for managing queue overload.
+//!
+//! CortexOS handles high-throughput event streams by providing configurable
+//! backpressure policies. Each policy defines how the queue behaves when it
+//! reaches capacity, allowing you to tune behavior based on your use case.
+//!
+//! # Policies
+//!
+//! - **DropNew**: Drop incoming events when queue is full (real-time priority)
+//! - **DropOld**: Drop oldest events when queue is full (recency priority)
+//! - **Coalesce**: Keep only latest event per key (stateful deduplication)
+//! - **Sample**: Keep 1 out of every N events (downsampling)
+//! - **Persist**: Spill to storage when full (durability priority)
+//!
+//! # Examples
+//!
+//! ```
+//! use cortex_core::backpressure::{BackpressurePolicy, PolicyQueue, Keyed};
+//!
+//! #[derive(Clone)]
+//! struct SensorReading {
+//!     sensor_id: String,
+//!     value: f32,
+//! }
+//!
+//! impl Keyed for SensorReading {
+//!     fn key(&self) -> Option<&str> {
+//!         Some(&self.sensor_id)
+//!     }
+//! }
+//!
+//! // Drop new readings when queue is full
+//! let queue: PolicyQueue<SensorReading> = PolicyQueue::new(
+//!     BackpressurePolicy::DropNew,
+//!     1000
+//! );
+//!
+//! // Coalesce readings by sensor ID (keep latest per sensor)
+//! let queue: PolicyQueue<SensorReading> = PolicyQueue::new(
+//!     BackpressurePolicy::Coalesce("sensor_id".to_string()),
+//!     1000
+//! );
+//! ```
+
 use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
 
+/// Backpressure policy for handling queue overload.
+///
+/// When a queue reaches capacity, the policy determines what happens:
+/// - New items may be dropped
+/// - Old items may be evicted
+/// - Items may be coalesced by key
+/// - Items may be sampled
+/// - Items may be persisted to storage
 #[derive(Clone, Debug)]
 pub enum BackpressurePolicy {
+    /// Drop new items when queue is full.
+    ///
+    /// Use for real-time systems where recent data in the queue is more
+    /// important than new incoming data.
     DropNew,
+
+    /// Drop oldest items when queue is full.
+    ///
+    /// Use for systems where recency matters more than completeness,
+    /// such as real-time sensor feeds or live metrics.
     DropOld,
+
+    /// Coalesce items by key, keeping only the latest value per key.
+    ///
+    /// Use for stateful updates where only the most recent value matters,
+    /// such as sensor readings or configuration updates.
+    ///
+    /// The string parameter is the field name used for coalescing.
     Coalesce(String),
+
+    /// Sample every Nth item, dropping the rest.
+    ///
+    /// Use for high-frequency event streams that can tolerate data loss,
+    /// such as metrics or telemetry.
+    ///
+    /// The usize parameter is the sampling rate (e.g., 10 = keep 1 in 10).
     Sample(usize),
+
+    /// Persist items to storage when queue is full.
+    ///
+    /// Use for critical events that must not be lost, such as financial
+    /// transactions or audit logs.
+    ///
+    /// Note: Storage persistence is not yet fully implemented.
     Persist,
 }
 
+/// Trait for items that can be keyed for coalescing.
+///
+/// Implement this trait to enable `BackpressurePolicy::Coalesce` for your type.
 pub trait Keyed {
+    /// Returns the key for this item, used for coalescing.
+    ///
+    /// Return `None` if the item should not be coalesced.
     fn key(&self) -> Option<&str>;
 }
 
+/// A queue with configurable backpressure policy.
+///
+/// `PolicyQueue` manages a bounded queue with one of several backpressure
+/// strategies. When the queue reaches capacity, the policy determines what
+/// happens to new items.
 pub struct PolicyQueue<T> {
     policy: BackpressurePolicy,
     capacity: usize,
@@ -23,6 +116,22 @@ pub struct PolicyQueue<T> {
 }
 
 impl<T: Clone + Keyed> PolicyQueue<T> {
+    /// Create a new queue with the specified policy and capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cortex_core::backpressure::{BackpressurePolicy, PolicyQueue, Keyed};
+    ///
+    /// #[derive(Clone)]
+    /// struct Item { value: i32 }
+    /// impl Keyed for Item { fn key(&self) -> Option<&str> { None } }
+    ///
+    /// let queue: PolicyQueue<Item> = PolicyQueue::new(
+    ///     BackpressurePolicy::DropNew,
+    ///     1000
+    /// );
+    /// ```
     pub fn new(policy: BackpressurePolicy, capacity: usize) -> Self {
         Self {
             policy,
@@ -33,6 +142,27 @@ impl<T: Clone + Keyed> PolicyQueue<T> {
         }
     }
 
+    /// Push an item onto the queue according to the backpressure policy.
+    ///
+    /// Returns `Ok(())` if the item was accepted, or `Err(item)` if it was
+    /// rejected according to the policy.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cortex_core::backpressure::{BackpressurePolicy, PolicyQueue, Keyed};
+    ///
+    /// #[derive(Clone)]
+    /// struct Item { value: i32 }
+    /// impl Keyed for Item {
+    ///     fn key(&self) -> Option<&str> { None }
+    /// }
+    ///
+    /// let queue = PolicyQueue::new(BackpressurePolicy::DropNew, 2);
+    /// assert!(queue.push(Item { value: 1 }).is_ok());
+    /// assert!(queue.push(Item { value: 2 }).is_ok());
+    /// assert!(queue.push(Item { value: 3 }).is_err()); // Queue full
+    /// ```
     pub fn push(&self, item: T) -> Result<(), T> {
         match &self.policy {
             BackpressurePolicy::DropNew => self.push_drop_new(item),
@@ -123,18 +253,41 @@ impl<T: Clone + Keyed> PolicyQueue<T> {
         Ok(())
     }
 
+    /// Pop an item from the front of the queue.
+    ///
+    /// Returns `None` if the queue is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cortex_core::backpressure::{BackpressurePolicy, PolicyQueue, Keyed};
+    ///
+    /// #[derive(Clone, Debug)]
+    /// struct Item { value: i32 }
+    /// impl Keyed for Item {
+    ///     fn key(&self) -> Option<&str> { None }
+    /// }
+    ///
+    /// let queue: PolicyQueue<Item> = PolicyQueue::new(BackpressurePolicy::DropOld, 10);
+    /// queue.push(Item { value: 42 }).unwrap();
+    /// let item = queue.pop().unwrap();
+    /// assert_eq!(item.value, 42);
+    /// ```
     pub fn pop(&self) -> Option<T> {
         self.queue.lock().pop_front()
     }
 
+    /// Returns the current number of items in the queue.
     pub fn len(&self) -> usize {
         self.queue.lock().len()
     }
 
+    /// Returns `true` if the queue contains no items.
     pub fn is_empty(&self) -> bool {
         self.queue.lock().is_empty()
     }
 
+    /// Returns the maximum capacity of the queue.
     pub fn capacity(&self) -> usize {
         self.capacity
     }

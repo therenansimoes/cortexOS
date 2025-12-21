@@ -62,8 +62,7 @@ impl GridOrchestrator {
     pub fn message_sender(&self) -> Result<mpsc::Sender<(NodeId, Message)>> {
         self.message_tx
             .as_ref()
-            .ok_or(GridError::MessageSenderNotInitialized)
-            .map(|tx| tx.clone())
+            .ok_or(GridError::MessageSenderNotInitialized).cloned()
     }
 
     /// Receive a grid message from a peer

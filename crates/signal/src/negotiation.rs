@@ -121,7 +121,7 @@ impl ChannelNegotiator {
                 }
 
                 let score = quality.score();
-                if best.is_none() || score > best.as_ref().unwrap().1 {
+                if best.as_ref().map_or(true, |&(_, best_score)| score > best_score) {
                     best = Some((channel.clone(), score));
                 }
             }

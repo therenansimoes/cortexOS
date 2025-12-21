@@ -15,7 +15,7 @@ use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::error::{GridError, Result};
 use crate::peer::{NodeId, PeerInfo};
@@ -95,9 +95,15 @@ impl LanDiscovery {
         packet: Vec<u8>,
         running: Arc<RwLock<bool>>,
     ) {
-        let multicast_addr: SocketAddr = format!("{}:{}", MULTICAST_ADDR, MULTICAST_PORT)
-            .parse()
-            .unwrap();
+        let multicast_addr = match format!("{}:{}", MULTICAST_ADDR, MULTICAST_PORT)
+            .parse::<SocketAddr>()
+        {
+            Ok(addr) => addr,
+            Err(e) => {
+                error!("Failed to parse multicast address: {}, announcer stopping", e);
+                return;
+            }
+        };
 
         loop {
             {
@@ -170,7 +176,9 @@ impl Discovery for LanDiscovery {
             .await
             .map_err(|e| GridError::DiscoveryError(e.to_string()))?;
 
-        let multicast_addr: std::net::Ipv4Addr = MULTICAST_ADDR.parse().unwrap();
+        let multicast_addr: std::net::Ipv4Addr = MULTICAST_ADDR
+            .parse()
+            .map_err(|e| GridError::InvalidMulticastAddr(format!("{}", e)))?;
         socket
             .join_multicast_v4(multicast_addr, std::net::Ipv4Addr::UNSPECIFIED)
             .map_err(|e| GridError::DiscoveryError(e.to_string()))?;
@@ -188,7 +196,10 @@ impl Discovery for LanDiscovery {
 
         let local_node_id = self.local_node_id;
         let discovered = Arc::clone(&self.discovered);
-        let event_tx = self.event_tx.take().unwrap();
+        let event_tx = self
+            .event_tx
+            .take()
+            .ok_or_else(|| GridError::DiscoveryError("Event sender already taken".to_string()))?;
         let running = Arc::clone(&self.running);
         tokio::spawn(Self::run_listener(
             socket,
@@ -257,7 +268,7 @@ impl MdnsDiscovery {
 
 impl Default for MdnsDiscovery {
     fn default() -> Self {
-        Self::new().expect("Failed to create MdnsDiscovery")
+        Self::new().expect("Failed to create MdnsDiscovery: critical initialization error")
     }
 }
 

@@ -160,26 +160,16 @@ pub enum SkillAnnouncement {
         skills: Vec<SkillMetadata>,
     },
     /// I no longer have this skill
-    Withdraw {
-        node: NodeId,
-        skill: SkillId,
-    },
+    Withdraw { node: NodeId, skill: SkillId },
     /// Request: what skills does this node have?
-    Query {
-        node: NodeId,
-    },
+    Query { node: NodeId },
     /// Response to query
     QueryResponse {
         node: NodeId,
         skills: Vec<SkillMetadata>,
     },
     /// Request: who has this skill?
-    WhoHas {
-        skill: SkillId,
-    },
+    WhoHas { skill: SkillId },
     /// Response: these nodes have it
-    WhoHasResponse {
-        skill: SkillId,
-        nodes: Vec<NodeId>,
-    },
+    WhoHasResponse { skill: SkillId, nodes: Vec<NodeId> },
 }

@@ -30,10 +30,7 @@ pub struct RelayBeacon {
 }
 
 impl RelayBeacon {
-    pub fn new(
-        recipient_pubkey_hash: [u8; 8],
-        encrypted_payload: Vec<u8>,
-    ) -> Self {
+    pub fn new(recipient_pubkey_hash: [u8; 8], encrypted_payload: Vec<u8>) -> Self {
         Self {
             recipient_pubkey_hash,
             ttl: DEFAULT_TTL,
@@ -163,10 +160,7 @@ impl Default for RotatingIdentity {
 pub struct RelayEncryption;
 
 impl RelayEncryption {
-    pub fn encrypt(
-        recipient_pubkey: &PublicKey,
-        plaintext: &[u8],
-    ) -> Result<(Vec<u8>, PublicKey)> {
+    pub fn encrypt(recipient_pubkey: &PublicKey, plaintext: &[u8]) -> Result<(Vec<u8>, PublicKey)> {
         let ephemeral_secret = EphemeralSecret::random_from_rng(rand::thread_rng());
         let ephemeral_public = PublicKey::from(&ephemeral_secret);
 
@@ -197,7 +191,9 @@ impl RelayEncryption {
         ciphertext: &[u8],
     ) -> Result<Vec<u8>> {
         if ciphertext.len() < 12 {
-            return Err(GridError::DecryptionError("Ciphertext too short".to_string()));
+            return Err(GridError::DecryptionError(
+                "Ciphertext too short".to_string(),
+            ));
         }
 
         let shared_secret = recipient_secret.diffie_hellman(sender_pubkey);

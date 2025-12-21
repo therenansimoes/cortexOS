@@ -52,7 +52,10 @@ impl TaskStatus {
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
-            TaskStatus::Completed | TaskStatus::Failed { .. } | TaskStatus::Cancelled | TaskStatus::TimedOut
+            TaskStatus::Completed
+                | TaskStatus::Failed { .. }
+                | TaskStatus::Cancelled
+                | TaskStatus::TimedOut
         )
     }
 }
@@ -194,7 +197,12 @@ pub struct TaskResult {
 }
 
 impl TaskResult {
-    pub fn success(task_id: TaskId, output: SkillOutput, executor: NodeId, duration_ms: u64) -> Self {
+    pub fn success(
+        task_id: TaskId,
+        output: SkillOutput,
+        executor: NodeId,
+        duration_ms: u64,
+    ) -> Self {
         Self {
             task_id,
             success: true,

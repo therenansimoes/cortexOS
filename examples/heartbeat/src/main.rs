@@ -140,9 +140,18 @@ async fn main() {
     let heartbeat2 = HeartbeatAgent::new("heart-2", 1500, Arc::clone(&event_bus));
     let listener = ListenerAgent::new("listener-1");
 
-    runtime.spawn_agent(heartbeat1).await.expect("Failed to spawn heartbeat1");
-    runtime.spawn_agent(heartbeat2).await.expect("Failed to spawn heartbeat2");
-    runtime.spawn_agent(listener).await.expect("Failed to spawn listener");
+    runtime
+        .spawn_agent(heartbeat1)
+        .await
+        .expect("Failed to spawn heartbeat1");
+    runtime
+        .spawn_agent(heartbeat2)
+        .await
+        .expect("Failed to spawn heartbeat2");
+    runtime
+        .spawn_agent(listener)
+        .await
+        .expect("Failed to spawn listener");
 
     let mut subscription = runtime.subscribe("agent.heartbeat.*");
 
@@ -156,6 +165,8 @@ async fn main() {
         }
     });
 
-    tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Failed to listen for Ctrl+C");
     info!("\n🛑 Shutting down...");
 }

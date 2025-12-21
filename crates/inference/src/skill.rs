@@ -2,12 +2,10 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use cortex_skill::definition::{
-    Skill, SkillCapability, SkillInput, SkillOutput, SkillMetadata,
-};
+use cortex_skill::definition::{Skill, SkillCapability, SkillInput, SkillMetadata, SkillOutput};
 use cortex_skill::Result as SkillResult;
 
-use crate::model::{Model, GenerationParams, ChatMessage};
+use crate::model::{ChatMessage, GenerationParams, Model};
 
 /// Base inference skill that wraps a model
 pub struct InferenceSkill {
@@ -18,11 +16,7 @@ pub struct InferenceSkill {
 impl InferenceSkill {
     pub fn new(skill_id: &str, model: Arc<RwLock<dyn Model>>) -> Self {
         Self {
-            metadata: SkillMetadata::new(
-                skill_id,
-                skill_id,
-                "LLM inference skill",
-            ),
+            metadata: SkillMetadata::new(skill_id, skill_id, "LLM inference skill"),
             model,
         }
     }
@@ -42,7 +36,8 @@ impl CompletionSkill {
                 "llm.completion",
                 "Text Completion",
                 "Generate text completions using LLM",
-            ).with_tags(vec!["llm", "text", "generation"]),
+            )
+            .with_tags(vec!["llm", "text", "generation"]),
             model,
             default_params: GenerationParams::default(),
         }
@@ -80,12 +75,15 @@ impl Skill for CompletionSkill {
             .unwrap_or_else(|| self.default_params.clone());
 
         let model = self.model.read().await;
-        let response = model.complete(&prompt, &params).await
+        let response = model
+            .complete(&prompt, &params)
+            .await
             .map_err(|e| cortex_skill::SkillError::ExecutionFailed(e.to_string()))?;
 
-        Ok(SkillOutput::new()
-            .with_text(&response)
-            .with_result("tokens", serde_json::json!(response.split_whitespace().count())))
+        Ok(SkillOutput::new().with_text(&response).with_result(
+            "tokens",
+            serde_json::json!(response.split_whitespace().count()),
+        ))
     }
 }
 
@@ -100,11 +98,8 @@ pub struct ChatSkill {
 impl ChatSkill {
     pub fn new(model: Arc<RwLock<dyn Model>>) -> Self {
         Self {
-            metadata: SkillMetadata::new(
-                "llm.chat",
-                "Chat",
-                "Multi-turn chat using LLM",
-            ).with_tags(vec!["llm", "chat", "conversation"]),
+            metadata: SkillMetadata::new("llm.chat", "Chat", "Multi-turn chat using LLM")
+                .with_tags(vec!["llm", "chat", "conversation"]),
             model,
             system_prompt: None,
             default_params: GenerationParams::default(),
@@ -135,7 +130,9 @@ impl Skill for ChatSkill {
 
     async fn execute(&self, input: SkillInput) -> SkillResult<SkillOutput> {
         // Parse messages from input
-        let messages: Vec<ChatMessage> = if let Some(msgs) = input.get_param::<Vec<ChatMessage>>("messages") {
+        let messages: Vec<ChatMessage> = if let Some(msgs) =
+            input.get_param::<Vec<ChatMessage>>("messages")
+        {
             msgs
         } else {
             let text = input.get_text().ok_or_else(|| {
@@ -155,7 +152,9 @@ impl Skill for ChatSkill {
             .unwrap_or_else(|| self.default_params.clone());
 
         let model = self.model.read().await;
-        let response = model.chat(&messages, &params).await
+        let response = model
+            .chat(&messages, &params)
+            .await
             .map_err(|e| cortex_skill::SkillError::ExecutionFailed(e.to_string()))?;
 
         Ok(SkillOutput::new().with_text(&response))
@@ -175,7 +174,8 @@ impl EmbeddingSkill {
                 "llm.embedding",
                 "Text Embedding",
                 "Generate vector embeddings for text",
-            ).with_tags(vec!["llm", "embedding", "vector"]),
+            )
+            .with_tags(vec!["llm", "embedding", "vector"]),
             model,
         }
     }
@@ -203,7 +203,9 @@ impl Skill for EmbeddingSkill {
         })?;
 
         let model = self.model.read().await;
-        let embedding = model.embed(&text).await
+        let embedding = model
+            .embed(&text)
+            .await
             .map_err(|e| cortex_skill::SkillError::ExecutionFailed(e.to_string()))?;
 
         Ok(SkillOutput::new()
@@ -227,7 +229,8 @@ impl CodeSkill {
                 &skill_id,
                 &format!("{} Code Generation", language),
                 &format!("Generate {} code using LLM", language),
-            ).with_tags(vec!["llm", "code", language]),
+            )
+            .with_tags(vec!["llm", "code", language]),
             model,
             language: language.to_string(),
         }
@@ -269,7 +272,9 @@ impl Skill for CodeSkill {
         };
 
         let model = self.model.read().await;
-        let response = model.complete(&code_prompt, &params).await
+        let response = model
+            .complete(&code_prompt, &params)
+            .await
             .map_err(|e| cortex_skill::SkillError::ExecutionFailed(e.to_string()))?;
 
         // Extract code from response

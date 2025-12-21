@@ -55,7 +55,11 @@ pub struct Event {
 }
 
 impl Event {
-    pub fn new(kind: impl Into<String>, source: impl Into<String>, payload: serde_json::Value) -> Self {
+    pub fn new(
+        kind: impl Into<String>,
+        source: impl Into<String>,
+        payload: serde_json::Value,
+    ) -> Self {
         Self {
             id: EventId::new(),
             kind: kind.into(),

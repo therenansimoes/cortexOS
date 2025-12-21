@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::StoreError;
 use crate::graph::ThoughtNode;
-use crate::privacy::{PrivacyFilter, PrivacyAware};
+use crate::privacy::{PrivacyAware, PrivacyFilter};
 use crate::types::{Event, NodeId, PrivacyLevel};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,7 +190,10 @@ impl SyncManager {
         let end = (start + self.chunk_size).min(filtered_nodes.len());
 
         if start >= filtered_nodes.len() {
-            return Err(StoreError::NotFound(format!("Chunk {} not found", chunk_id)));
+            return Err(StoreError::NotFound(format!(
+                "Chunk {} not found",
+                chunk_id
+            )));
         }
 
         let chunk_nodes = filtered_nodes[start..end].to_vec();
@@ -203,7 +206,10 @@ impl SyncManager {
         ExportChunk::new(chunk_id, chunk_nodes, chunk_events)
     }
 
-    pub fn import_chunk(&self, chunk: &ExportChunk) -> Result<(Vec<ThoughtNode>, Vec<Event>), StoreError> {
+    pub fn import_chunk(
+        &self,
+        chunk: &ExportChunk,
+    ) -> Result<(Vec<ThoughtNode>, Vec<Event>), StoreError> {
         if !chunk.verify()? {
             return Err(StoreError::Integrity("Chunk hash mismatch".into()));
         }

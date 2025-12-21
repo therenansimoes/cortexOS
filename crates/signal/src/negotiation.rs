@@ -100,7 +100,13 @@ impl ChannelNegotiator {
 
     pub async fn mark_available(&self, channel: Channel, quality: ChannelQuality) {
         let mut qualities = self.qualities.write().await;
-        qualities.insert(channel, ChannelQuality { available: true, ..quality });
+        qualities.insert(
+            channel,
+            ChannelQuality {
+                available: true,
+                ..quality
+            },
+        );
     }
 
     pub async fn best_channel(&self) -> Result<Channel, NegotiationError> {

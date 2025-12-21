@@ -53,9 +53,9 @@ impl RouteQuality {
     pub fn score(&self) -> f32 {
         let latency_score = 1.0 - (self.latency_us as f32 / 1_000_000.0).clamp(0.0, 1.0);
         let hop_penalty = (1.0 - (self.hop_count as f32 / MAX_HOP_COUNT as f32)).max(0.1);
-        
-        (self.reliability * 0.4) 
-            + (latency_score * 0.3) 
+
+        (self.reliability * 0.4)
+            + (latency_score * 0.3)
             + (self.signal_strength * 0.2)
             + (hop_penalty * 0.1)
     }
@@ -132,13 +132,13 @@ impl RoutingTable {
         }
 
         let routes = self.routes.entry(destination).or_default();
-        
+
         routes.retain(|r| !r.is_expired());
-        
+
         routes.push(route);
         routes.sort_by(|a, b| b.quality.score().partial_cmp(&a.quality.score()).unwrap());
         routes.truncate(MAX_ROUTES_PER_DESTINATION);
-        
+
         debug!(
             destination = %destination,
             route_count = routes.len(),
@@ -166,9 +166,9 @@ impl RoutingTable {
             routes.retain(|r| !r.is_expired());
             pruned += before - routes.len();
         }
-        
+
         self.routes.retain(|_, routes| !routes.is_empty());
-        
+
         if pruned > 0 {
             debug!(pruned_count = pruned, "Pruned expired routes");
         }
@@ -203,9 +203,15 @@ impl RouteDiscovery {
         }
     }
 
-    pub fn initiate_discovery(&mut self, source: NodeId, destination: NodeId, sequence: u32) -> RouteId {
+    pub fn initiate_discovery(
+        &mut self,
+        source: NodeId,
+        destination: NodeId,
+        sequence: u32,
+    ) -> RouteId {
         let route_id = RouteId::new(source, destination, sequence);
-        self.pending_requests.insert(route_id.clone(), Instant::now());
+        self.pending_requests
+            .insert(route_id.clone(), Instant::now());
         info!(
             source = %source,
             destination = %destination,
@@ -219,7 +225,7 @@ impl RouteDiscovery {
         if self.seen_requests.contains(route_id) {
             return false;
         }
-        
+
         self.seen_requests.insert(route_id.clone());
         true
     }
@@ -230,8 +236,9 @@ impl RouteDiscovery {
 
     pub fn prune_old_requests(&mut self, timeout: Duration) {
         let now = Instant::now();
-        self.pending_requests.retain(|_, timestamp| now.duration_since(*timestamp) < timeout);
-        
+        self.pending_requests
+            .retain(|_, timestamp| now.duration_since(*timestamp) < timeout);
+
         if self.seen_requests.len() > 1000 {
             self.seen_requests.clear();
         }
@@ -263,17 +270,22 @@ impl MultiHopRouter {
 
     pub async fn find_route(&self, destination: &NodeId) -> Result<Route, RoutingError> {
         let table = self.routing_table.read().await;
-        
+
         if let Some(route) = table.best_route(destination) {
             return Ok(route.clone());
         }
-        
+
         drop(table);
-        
+
         Err(RoutingError::NoRouteAvailable)
     }
 
-    pub async fn add_discovered_route(&self, destination: NodeId, path: Vec<NodeId>, quality: RouteQuality) {
+    pub async fn add_discovered_route(
+        &self,
+        destination: NodeId,
+        path: Vec<NodeId>,
+        quality: RouteQuality,
+    ) {
         let route = Route::new(path, quality);
         let mut table = self.routing_table.write().await;
         table.add_route(destination, route);
@@ -281,7 +293,7 @@ impl MultiHopRouter {
 
     pub async fn next_hop(&self, destination: &NodeId) -> Result<NodeId, RoutingError> {
         let route = self.find_route(destination).await?;
-        
+
         route
             .next_hop(&self.local_node)
             .ok_or(RoutingError::InvalidRoute)
@@ -292,7 +304,7 @@ impl MultiHopRouter {
         *seq = seq.wrapping_add(1);
         let sequence = *seq;
         drop(seq);
-        
+
         let mut discovery = self.route_discovery.write().await;
         discovery.initiate_discovery(self.local_node, destination, sequence)
     }
@@ -305,7 +317,7 @@ impl MultiHopRouter {
     pub async fn prune_stale_data(&self) {
         let mut table = self.routing_table.write().await;
         table.prune_expired();
-        
+
         let mut discovery = self.route_discovery.write().await;
         discovery.prune_old_requests(Duration::from_secs(30));
     }
@@ -313,7 +325,7 @@ impl MultiHopRouter {
     pub async fn remove_node_from_routes(&self, node: &NodeId) {
         let mut table = self.routing_table.write().await;
         let destinations: Vec<NodeId> = table.known_destinations();
-        
+
         for dest in destinations {
             let routes_to_remove: Vec<Vec<NodeId>> = table
                 .all_routes(&dest)
@@ -321,7 +333,7 @@ impl MultiHopRouter {
                 .filter(|r| r.contains(node))
                 .map(|r| r.path.clone())
                 .collect();
-            
+
             for path in routes_to_remove {
                 table.remove_route(&dest, &path);
             }
@@ -357,7 +369,7 @@ mod tests {
             hop_count: 2,
             channel: Channel::Ble,
         };
-        
+
         let score = quality.score();
         assert!(score > 0.5 && score < 1.0);
     }
@@ -366,7 +378,7 @@ mod tests {
     fn test_route_quality_degradation() {
         let quality = RouteQuality::new(Channel::Light);
         let degraded = quality.degrade_for_hop();
-        
+
         assert_eq!(degraded.hop_count, 1);
         assert!(degraded.reliability < quality.reliability);
         assert!(degraded.signal_strength < quality.signal_strength);
@@ -378,10 +390,10 @@ mod tests {
         let node1 = test_node_id(1);
         let node2 = test_node_id(2);
         let node3 = test_node_id(3);
-        
+
         let path = vec![node1, node2, node3];
         let route = Route::new(path, RouteQuality::new(Channel::Ble));
-        
+
         assert_eq!(route.next_hop(&node1), Some(node2));
         assert_eq!(route.next_hop(&node2), Some(node3));
         assert_eq!(route.next_hop(&node3), None);
@@ -391,16 +403,16 @@ mod tests {
     fn test_routing_table_add_route() {
         let local = test_node_id(1);
         let dest = test_node_id(3);
-        
+
         let mut table = RoutingTable::new(local);
-        
+
         let route = Route::new(
             vec![local, test_node_id(2), dest],
             RouteQuality::new(Channel::Ble),
         );
-        
+
         table.add_route(dest, route);
-        
+
         assert!(table.best_route(&dest).is_some());
     }
 
@@ -408,17 +420,17 @@ mod tests {
     fn test_routing_table_best_route() {
         let local = test_node_id(1);
         let dest = test_node_id(4);
-        
+
         let mut table = RoutingTable::new(local);
-        
+
         let mut good_quality = RouteQuality::new(Channel::Ble);
         good_quality.reliability = 0.95;
         good_quality.latency_us = 1000;
-        
+
         let mut bad_quality = RouteQuality::new(Channel::Light);
         bad_quality.reliability = 0.5;
         bad_quality.latency_us = 100_000;
-        
+
         table.add_route(
             dest,
             Route::new(vec![local, test_node_id(2), dest], good_quality),
@@ -427,7 +439,7 @@ mod tests {
             dest,
             Route::new(vec![local, test_node_id(3), dest], bad_quality),
         );
-        
+
         let best = table.best_route(&dest).unwrap();
         assert!(best.quality.reliability > 0.9);
     }
@@ -436,14 +448,14 @@ mod tests {
     async fn test_multi_hop_router_find_route() {
         let local = test_node_id(1);
         let dest = test_node_id(3);
-        
+
         let router = MultiHopRouter::new(local);
-        
+
         let path = vec![local, test_node_id(2), dest];
         router
             .add_discovered_route(dest, path, RouteQuality::new(Channel::Ble))
             .await;
-        
+
         let route = router.find_route(&dest).await.unwrap();
         assert_eq!(route.path.len(), 3);
     }
@@ -453,14 +465,14 @@ mod tests {
         let local = test_node_id(1);
         let intermediate = test_node_id(2);
         let dest = test_node_id(3);
-        
+
         let router = MultiHopRouter::new(local);
-        
+
         let path = vec![local, intermediate, dest];
         router
             .add_discovered_route(dest, path, RouteQuality::new(Channel::Ble))
             .await;
-        
+
         let next = router.next_hop(&dest).await.unwrap();
         assert_eq!(next, intermediate);
     }
@@ -469,7 +481,7 @@ mod tests {
     fn test_route_discovery_forward_once() {
         let mut discovery = RouteDiscovery::new();
         let route_id = RouteId::new(test_node_id(1), test_node_id(3), 1);
-        
+
         assert!(discovery.should_forward(&route_id));
         assert!(!discovery.should_forward(&route_id));
     }

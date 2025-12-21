@@ -26,7 +26,11 @@ impl Compiler {
         match stmt {
             Statement::Goal(goal) => {
                 output.push_str(&format!("{}// Goal: {}\n", prefix, goal.name));
-                output.push_str(&format!("{}pub async fn goal_{}() {{\n", prefix, Self::sanitize_name(&goal.name)));
+                output.push_str(&format!(
+                    "{}pub async fn goal_{}() {{\n",
+                    prefix,
+                    Self::sanitize_name(&goal.name)
+                ));
                 for s in &goal.body {
                     Self::compile_statement(output, s, indent + 1)?;
                 }

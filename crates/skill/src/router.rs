@@ -5,9 +5,9 @@ use tracing::{debug, info, warn};
 use cortex_grid::NodeId;
 use cortex_reputation::{SkillId, TrustGraph, TrustScore};
 
+use crate::error::{Result, SkillError};
 use crate::registry::NetworkSkillRegistry;
 use crate::task::SkillTask;
-use crate::error::{SkillError, Result};
 
 /// Decision on where to route a task
 #[derive(Debug, Clone)]
@@ -79,7 +79,9 @@ impl SkillRouter {
             if trust.value() < min_trust {
                 debug!(
                     "Node {} filtered out: trust {:.2} < min {:.2}",
-                    node, trust.value(), min_trust
+                    node,
+                    trust.value(),
+                    min_trust
                 );
                 continue;
             }
@@ -111,7 +113,11 @@ impl SkillRouter {
 
         info!(
             "Routed task {} to node {} (trust: {:.2}, skill: {:.2}, combined: {:.2})",
-            task.id, best.0, best.2.value(), best.3, best.1
+            task.id,
+            best.0,
+            best.2.value(),
+            best.3,
+            best.1
         );
 
         Ok(RouteDecision {

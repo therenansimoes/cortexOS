@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::pin::Pin;
 use std::future::Future;
+use std::pin::Pin;
 
 use crate::ast::*;
 use crate::error::VMError;
@@ -28,9 +28,12 @@ impl From<&Expr> for Value {
             Expr::Number(n) => Value::Number(*n),
             Expr::Bool(b) => Value::Bool(*b),
             Expr::Array(arr) => Value::Array(arr.iter().map(Value::from).collect()),
-            Expr::Object(pairs) => {
-                Value::Object(pairs.iter().map(|(k, v)| (k.clone(), Value::from(v))).collect())
-            }
+            Expr::Object(pairs) => Value::Object(
+                pairs
+                    .iter()
+                    .map(|(k, v)| (k.clone(), Value::from(v)))
+                    .collect(),
+            ),
             _ => Value::Null,
         }
     }
@@ -180,11 +183,7 @@ impl VM {
 
     async fn execute_store(&mut self, store: &StoreExpr) -> Result<Value, VMError> {
         let key = store.key.clone().unwrap_or_else(|| "result".to_string());
-        let value = store
-            .value
-            .as_ref()
-            .map(Value::from)
-            .unwrap_or(Value::Null);
+        let value = store.value.as_ref().map(Value::from).unwrap_or(Value::Null);
         self.context.stored.insert(key, value);
         Ok(Value::Null)
     }

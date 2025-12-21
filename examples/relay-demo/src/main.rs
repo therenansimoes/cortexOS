@@ -33,11 +33,17 @@ async fn main() {
     let receiver_identity = RotatingIdentity::new();
     let receiver_pubkey = *receiver_identity.public_key();
 
-    info!("📡 Receiver's public key hash: {:02x?}", receiver_identity.pubkey_hash());
+    info!(
+        "📡 Receiver's public key hash: {:02x?}",
+        receiver_identity.pubkey_hash()
+    );
     info!("");
 
     let secret_message = b"Hello from CortexOS! This is a secret message.";
-    info!("📨 Original message: {:?}", String::from_utf8_lossy(secret_message));
+    info!(
+        "📨 Original message: {:?}",
+        String::from_utf8_lossy(secret_message)
+    );
 
     let beacon = node_a
         .create_beacon(&receiver_pubkey, secret_message)
@@ -48,11 +54,17 @@ async fn main() {
     info!("   TTL: {}", beacon.ttl);
     info!("   Hop count: {}", beacon.hop_count);
     info!("   Recipient hash: {:02x?}", beacon.recipient_pubkey_hash);
-    info!("   Encrypted size: {} bytes", beacon.encrypted_payload.len());
+    info!(
+        "   Encrypted size: {} bytes",
+        beacon.encrypted_payload.len()
+    );
     info!("");
 
     info!("🔄 Node B receives and forwards the beacon...");
-    node_b.handle_beacon(beacon.clone()).await.expect("Failed to handle beacon");
+    node_b
+        .handle_beacon(beacon.clone())
+        .await
+        .expect("Failed to handle beacon");
 
     if let Ok(msg) = rx_b.try_recv() {
         info!("   Node B forwarded message: {:?}", msg);
@@ -62,7 +74,10 @@ async fn main() {
     info!("📥 Node C (receiver) receives beacon...");
 
     let node_c_clone = node_c.clone();
-    node_c_clone.handle_beacon(beacon.clone()).await.expect("Failed to handle on C");
+    node_c_clone
+        .handle_beacon(beacon.clone())
+        .await
+        .expect("Failed to handle on C");
 
     info!("");
     info!("🔓 Beacon details:");

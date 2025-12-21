@@ -87,11 +87,7 @@ mod tests {
 
     #[test]
     fn test_pattern_duration() {
-        let pattern = SignalPattern::new(vec![
-            Pulse::on(1000),
-            Pulse::off(500),
-            Pulse::on(1000),
-        ]);
+        let pattern = SignalPattern::new(vec![Pulse::on(1000), Pulse::off(500), Pulse::on(1000)]);
         assert_eq!(pattern.total_duration_us(), 2500);
         assert_eq!(pattern.pulse_count(), 3);
     }

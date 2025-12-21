@@ -70,7 +70,10 @@ pub enum Expr {
     Number(f64),
     Bool(bool),
     Ident(String),
-    Call { func: String, args: Vec<Expr> },
+    Call {
+        func: String,
+        args: Vec<Expr>,
+    },
     Object(Vec<(String, Expr)>),
     Array(Vec<Expr>),
     Binary {

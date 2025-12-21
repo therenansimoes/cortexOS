@@ -28,6 +28,8 @@ Thumbs.db
 *.profdata
 coverage/
 lcov.info
+cobertura.xml
+tarpaulin-report.html
 
 # WASM build artifacts
 pkg/

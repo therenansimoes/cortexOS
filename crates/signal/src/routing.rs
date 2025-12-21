@@ -117,6 +117,13 @@ const QUALITY_SUCCESS_WEIGHT: f32 = 0.6;
 const QUALITY_HOP_WEIGHT: f32 = 0.3;
 const QUALITY_AGE_WEIGHT: f32 = 0.1;
 
+// Default values for route quality calculations
+const HOP_PENALTY_FACTOR: f32 = 0.2;
+const DEFAULT_SUCCESS_RATE: f32 = 0.5;
+
+// Protocol versioning
+const ROUTING_PROTOCOL_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RouteId([u8; 16]);
 
@@ -233,12 +240,12 @@ impl Route {
         if self.success_count + self.failure_count > 0 {
             self.success_count as f32 / (self.success_count + self.failure_count) as f32
         } else {
-            0.5
+            DEFAULT_SUCCESS_RATE
         }
     }
 
     fn calculate_hop_penalty(&self) -> f32 {
-        1.0 / (1.0 + self.hop_count() as f32 * 0.2)
+        1.0 / (1.0 + self.hop_count() as f32 * HOP_PENALTY_FACTOR)
     }
 
     fn calculate_age_penalty(&self) -> f32 {
@@ -277,6 +284,7 @@ impl Route {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultiHopMessage {
+    pub protocol_version: u32,
     pub route_id: RouteId,
     pub source: NodeId,
     pub destination: NodeId,
@@ -289,6 +297,7 @@ pub struct MultiHopMessage {
 impl MultiHopMessage {
     pub fn new(source: NodeId, destination: NodeId, signal: Signal) -> Self {
         Self {
+            protocol_version: ROUTING_PROTOCOL_VERSION,
             route_id: RouteId::new(),
             source,
             destination,
@@ -310,7 +319,20 @@ impl MultiHopMessage {
 
     pub fn forward(&mut self, current_node: NodeId) -> Result<(), SignalError> {
         if !self.can_forward() {
-            return Err(SignalError::InvalidPattern("TTL expired".to_string()));
+            // Provide accurate error messages depending on which forwarding constraint failed
+            if self.ttl == 0 && self.hop_count >= MAX_HOP_LIMIT {
+                return Err(SignalError::InvalidPattern(
+                    "Cannot forward: TTL expired and max hop limit reached".to_string(),
+                ));
+            } else if self.ttl == 0 {
+                return Err(SignalError::InvalidPattern(
+                    "Cannot forward: TTL expired".to_string(),
+                ));
+            } else {
+                return Err(SignalError::InvalidPattern(
+                    "Cannot forward: max hop limit reached".to_string(),
+                ));
+            }
         }
 
         self.ttl = self.ttl.saturating_sub(1);
@@ -327,6 +349,7 @@ impl MultiHopMessage {
 
 #[derive(Debug, Clone)]
 pub struct RouteDiscoveryRequest {
+    pub protocol_version: u32,
     pub id: RouteId,
     pub source: NodeId,
     pub destination: NodeId,
@@ -339,6 +362,7 @@ pub struct RouteDiscoveryRequest {
 impl RouteDiscoveryRequest {
     pub fn new(source: NodeId, destination: NodeId) -> Self {
         Self {
+            protocol_version: ROUTING_PROTOCOL_VERSION,
             id: RouteId::new(),
             source,
             destination,
@@ -366,6 +390,7 @@ impl RouteDiscoveryRequest {
 
 #[derive(Debug, Clone)]
 pub struct RouteDiscoveryReply {
+    pub protocol_version: u32,
     pub request_id: RouteId,
     pub source: NodeId,
     pub destination: NodeId,
@@ -397,8 +422,9 @@ impl RoutingTable {
 
     pub fn add_route(&mut self, route: Route) {
         let key = (route.source, route.destination);
-        self.by_id.insert(route.id.clone(), route.clone());
-
+        let route_id = route.id.clone();
+        
+        // Insert into routes vector
         let routes = self.routes.entry(key).or_insert_with(Vec::new);
         routes.push(route);
 
@@ -406,10 +432,16 @@ impl RoutingTable {
             b.quality_score().partial_cmp(&a.quality_score()).unwrap_or(std::cmp::Ordering::Equal)
         });
 
+        // Trim excess routes and remove from by_id
         if routes.len() > self.max_routes_per_pair {
             if let Some(removed) = routes.pop() {
                 self.by_id.remove(&removed.id);
             }
+        }
+        
+        // Update by_id with reference to route in vector
+        if let Some(route_ref) = routes.iter().find(|r| r.id == route_id) {
+            self.by_id.insert(route_id, route_ref.clone());
         }
     }
 
@@ -585,12 +617,18 @@ impl MultiHopRouter {
                 })
                 .collect();
 
+            // Calculate total latency from all hops
+            let total_latency_us = hops.iter()
+                .filter_map(|hop| hop.latency_us)
+                .sum();
+
             return Some(RouteDiscoveryReply {
+                protocol_version: ROUTING_PROTOCOL_VERSION,
                 request_id: request.id.clone(),
                 source: request.source,
                 destination: self.node_id,
                 path: hops,
-                total_latency_us: 0,
+                total_latency_us,
             });
         }
 
@@ -787,5 +825,84 @@ mod tests {
         let request = router.discover_route(node2).await;
         assert_eq!(request.source, node1);
         assert_eq!(request.destination, node2);
+    }
+
+    #[tokio::test]
+    async fn test_handle_discovery_request_at_destination() {
+        let node_dest = NodeId::generate();
+        let node_src = NodeId::generate();
+        let router = MultiHopRouter::new(node_dest);
+
+        let mut request = RouteDiscoveryRequest::new(node_src, node_dest);
+        request.path.push(NodeId::generate()); // Add intermediate node
+        
+        let reply = router.handle_discovery_request(&mut request, Channel::Ble).await;
+        
+        assert!(reply.is_some());
+        let reply = reply.unwrap();
+        assert_eq!(reply.source, node_src);
+        assert_eq!(reply.destination, node_dest);
+        assert_eq!(reply.protocol_version, ROUTING_PROTOCOL_VERSION);
+        assert!(reply.total_latency_us > 0); // Should have calculated latency
+    }
+
+    #[tokio::test]
+    async fn test_handle_discovery_request_at_intermediate() {
+        let node_intermediate = NodeId::generate();
+        let node_src = NodeId::generate();
+        let node_dest = NodeId::generate();
+        let router = MultiHopRouter::new(node_intermediate);
+
+        let mut request = RouteDiscoveryRequest::new(node_src, node_dest);
+        
+        let reply = router.handle_discovery_request(&mut request, Channel::Ble).await;
+        
+        assert!(reply.is_none()); // Intermediate nodes don't reply
+        assert_eq!(request.path.len(), 2); // Path should include intermediate node
+        assert_eq!(request.path[1], node_intermediate);
+    }
+
+    #[tokio::test]
+    async fn test_handle_discovery_reply() {
+        let node1 = NodeId::generate();
+        let node2 = NodeId::generate();
+        let node3 = NodeId::generate();
+        let router = MultiHopRouter::new(node1);
+
+        // Start a discovery
+        let request = router.discover_route(node3).await;
+        let request_id = request.id.clone();
+
+        // Simulate receiving a reply
+        let hops = vec![
+            RouteHop::new(node2, Channel::Ble).with_latency(1000),
+            RouteHop::new(node3, Channel::Light).with_latency(1500),
+        ];
+        let reply = RouteDiscoveryReply {
+            protocol_version: ROUTING_PROTOCOL_VERSION,
+            request_id,
+            source: node1,
+            destination: node3,
+            path: hops,
+            total_latency_us: 2500,
+        };
+
+        router.handle_discovery_reply(&reply).await;
+
+        // Verify route was added
+        assert_eq!(router.route_count().await, 1);
+    }
+
+    #[test]
+    fn test_protocol_versioning() {
+        let node1 = NodeId::generate();
+        let node2 = NodeId::generate();
+        let signal = create_test_signal();
+
+        let message = MultiHopMessage::new(node1, node2, signal);
+        assert_eq!(message.protocol_version, ROUTING_PROTOCOL_VERSION);
+
+        let request = RouteDiscoveryRequest::new(node1, node2);
+        assert_eq!(request.protocol_version, ROUTING_PROTOCOL_VERSION);
     }
 }

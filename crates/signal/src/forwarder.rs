@@ -9,7 +9,7 @@ use crate::codebook::{Codebook, StandardSymbol};
 use crate::emitter::Emitter;
 use crate::error::{EmitError, RoutingError};
 use crate::receiver::Receiver;
-use crate::routing::{MultiHopRouter, RouteQuality};
+use crate::routing::{MultiHopRouter, Route, RouteHop};
 use crate::signal::Channel;
 
 #[derive(Debug, Clone)]
@@ -84,19 +84,41 @@ impl SignalForwarder {
 
         message.increment_hop();
 
-        let next_hop = self.router.next_hop(&message.destination).await?;
+        // Use routing system to find next hop
+        let pattern = {
+            let codebook_guard = self.codebook.read().await;
+            let beacon_symbol = StandardSymbol::Beacon.to_symbol_id();
+            codebook_guard.encode(beacon_symbol)
+                .map_err(|_| RoutingError::InvalidRoute)?.clone()
+        };
         
-        debug!(
-            source = %message.source,
-            destination = %message.destination,
-            next_hop = %next_hop,
-            hop_count = message.hop_count,
-            "Forwarding message to next hop"
+        let beacon_symbol = StandardSymbol::Beacon.to_symbol_id();
+        let signal = crate::signal::Signal::new(beacon_symbol, pattern.clone(), Channel::Ble);
+        let routing_message = crate::routing::MultiHopMessage::new(
+            message.source,
+            message.destination,
+            signal
         );
-
-        self.pending_forwards.write().await.push(message);
         
-        Ok(())
+        match self.router.route_message(&routing_message).await {
+            Ok(Some(next_hop)) => {
+                debug!(
+                    source = %message.source,
+                    destination = %message.destination,
+                    next_hop = %next_hop.node_id,
+                    hop_count = message.hop_count,
+                    "Forwarding message to next hop"
+                );
+
+                self.pending_forwards.write().await.push(message);
+                Ok(())
+            }
+            Ok(None) => {
+                // We are the destination
+                Ok(())
+            }
+            Err(_) => Err(RoutingError::NoRouteAvailable),
+        }
     }
 
     pub async fn send_via_signal(
@@ -105,19 +127,16 @@ impl SignalForwarder {
         payload: Vec<u8>,
         preferred_channel: Option<Channel>,
     ) -> Result<(), EmitError> {
-        let route = self.router.find_route(&destination).await
-            .map_err(|_| EmitError::ChannelUnavailable(Channel::Ble))?;
-
-        let channel = preferred_channel.unwrap_or(route.quality.channel);
-        
-        let emitters = self.emitters.read().await;
-        let emitter = emitters
-            .get(&channel)
-            .ok_or_else(|| EmitError::ChannelUnavailable(channel.clone()))?;
-
-        let codebook = self.codebook.read().await;
+        // Create a message and try to route it
+        let codebook_guard = self.codebook.read().await;
         let beacon_symbol = StandardSymbol::Beacon.to_symbol_id();
-        let pattern = codebook.encode(beacon_symbol)?;
+        let pattern = codebook_guard.encode(beacon_symbol)?.clone();
+        drop(codebook_guard);
+        
+        let channel = preferred_channel.unwrap_or(Channel::Ble);
+        let signal = crate::signal::Signal::new(beacon_symbol, pattern.clone(), channel.clone());
+        
+        let message = crate::routing::MultiHopMessage::new(self.local_node, destination, signal);
         
         info!(
             destination = %destination,
@@ -125,10 +144,24 @@ impl SignalForwarder {
             payload_size = payload.len(),
             "Sending signal via multi-hop route"
         );
-
-        emitter.emit(pattern).await?;
         
-        Ok(())
+        // Try to route the message
+        match self.router.route_message(&message).await {
+            Ok(Some(next_hop)) => {
+                let emitters = self.emitters.read().await;
+                let emitter = emitters
+                    .get(&next_hop.channel)
+                    .ok_or_else(|| EmitError::ChannelUnavailable(next_hop.channel.clone()))?;
+                
+                emitter.emit(&pattern).await?;
+                Ok(())
+            }
+            Ok(None) => {
+                // Message reached destination (we are the destination)
+                Ok(())
+            }
+            Err(_) => Err(EmitError::ChannelUnavailable(channel))
+        }
     }
 
     pub async fn process_received_signal<R: Receiver>(
@@ -181,10 +214,11 @@ impl SignalForwarder {
     pub async fn update_route_from_signal(
         &self,
         source: NodeId,
-        path: Vec<NodeId>,
-        quality: RouteQuality,
+        destination: NodeId,
+        hops: Vec<RouteHop>,
     ) {
-        self.router.add_discovered_route(source, path, quality).await;
+        let route = Route::new(source, destination, hops);
+        self.router.add_route(route).await;
     }
 
     pub async fn pending_forward_count(&self) -> usize {

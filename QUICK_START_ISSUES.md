@@ -27,7 +27,10 @@ Follow the prompts to authenticate with your GitHub account.
 ### Step 3: Create Issues
 
 ```bash
-cd /path/to/cortexOS
+# Navigate to your CortexOS repository
+cd ~/cortexOS  # or wherever you cloned the repository
+
+# Run the script
 ./tools/create-tasklist-issues.sh
 ```
 

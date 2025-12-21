@@ -275,7 +275,7 @@ Create GitHub Milestones for each major version:
 gh api repos/:owner/:repo/milestones \
   -f title="Milestone 0.1 - Portable Runtime" \
   -f description="Event system and WASI support" \
-  -f due_on="2024-03-01T00:00:00Z"
+  -f due_on="2026-03-01T00:00:00Z"  # Adjust date as needed
 
 # Assign issue to milestone
 gh issue edit <issue-number> --milestone "Milestone 0.1"

@@ -35,10 +35,15 @@ create_parent_issue() {
     local labels="$3"
     
     echo -e "${BLUE}Creating issue: ${title}${NC}"
-    gh issue create \
+    if gh issue create \
         --title "$title" \
         --body "$body" \
-        --label "$labels" || true
+        --label "$labels" 2>&1; then
+        echo -e "${GREEN}✓ Created successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠ Warning: Issue may not have been created${NC}"
+        echo -e "${YELLOW}  Check GitHub web UI to verify${NC}"
+    fi
     echo ""
 }
 
@@ -80,9 +85,9 @@ The following PRs are part of this phase. Check them off as they are completed:
 - **Security Focus**: PRs #7 and #39 are security-critical
 
 ## Resources
-- See [WORK_PLAN.md](../WORK_PLAN.md#phase-1-foundation-stabilization-weeks-1-4) for detailed plan
-- See [PR_BREAKDOWN.md](../PR_BREAKDOWN.md) for PR specifications
-- See [ROADMAP.md](../ROADMAP.md) for visual overview
+- See [WORK_PLAN.md](../../../WORK_PLAN.md#phase-1-foundation-stabilization-weeks-1-4) for detailed plan
+- See [PR_BREAKDOWN.md](../../../PR_BREAKDOWN.md) for PR specifications
+- See [ROADMAP.md](../../../ROADMAP.md) for visual overview
 
 ## Definition of Done
 - [ ] All sub-issues completed and merged
@@ -133,9 +138,9 @@ This is the parent tracking issue for **Phase 2: Core Features** (Weeks 5-10).
 - **Security**: PR #11 is security-critical
 
 ## Resources
-- See [WORK_PLAN.md](../WORK_PLAN.md#phase-2-core-feature-completion-weeks-5-10)
-- See [PR_BREAKDOWN.md](../PR_BREAKDOWN.md#milestone-02---grid-bootstrap)
-- See [ROADMAP.md](../ROADMAP.md)
+- See [WORK_PLAN.md](../../WORK_PLAN.md#phase-2-core-feature-completion-weeks-5-10)
+- See [PR_BREAKDOWN.md](../../PR_BREAKDOWN.md#milestone-02---grid-bootstrap)
+- See [ROADMAP.md](../../ROADMAP.md)
 
 ## Definition of Done
 - [ ] All sub-issues completed and merged
@@ -180,9 +185,9 @@ This is the parent tracking issue for **Phase 3: Cognitive Layer** (Weeks 11-16)
 - **Dependencies**: PR #19 depends on both PR #15 and PR #18
 
 ## Resources
-- See [WORK_PLAN.md](../WORK_PLAN.md#phase-3-cognitive-layer-weeks-11-16)
-- See [PR_BREAKDOWN.md](../PR_BREAKDOWN.md#milestone-03---thought-graph)
-- See [ROADMAP.md](../ROADMAP.md)
+- See [WORK_PLAN.md](../../WORK_PLAN.md#phase-3-cognitive-layer-weeks-11-16)
+- See [PR_BREAKDOWN.md](../../PR_BREAKDOWN.md#milestone-03---thought-graph)
+- See [ROADMAP.md](../../ROADMAP.md)
 
 ## Definition of Done
 - [ ] All sub-issues completed and merged
@@ -221,9 +226,9 @@ This is the parent tracking issue for **Phase 4: Physical Layer** (Weeks 17-20).
 - **Dependencies**: PRs #21-23 all depend on PR #20
 
 ## Resources
-- See [WORK_PLAN.md](../WORK_PLAN.md#phase-4-physical-layer-weeks-17-20)
-- See [PR_BREAKDOWN.md](../PR_BREAKDOWN.md#milestone-04---subnet-framing)
-- See [ROADMAP.md](../ROADMAP.md)
+- See [WORK_PLAN.md](../../WORK_PLAN.md#phase-4-physical-layer-weeks-17-20)
+- See [PR_BREAKDOWN.md](../../PR_BREAKDOWN.md#milestone-04---subnet-framing)
+- See [ROADMAP.md](../../ROADMAP.md)
 
 ## Definition of Done
 - [ ] All sub-issues completed and merged
@@ -263,9 +268,9 @@ This is the parent tracking issue for **Phase 5: Intelligence** (Weeks 21-26).
 - **Showcase**: PR #27 demonstrates distributed capabilities
 
 ## Resources
-- See [WORK_PLAN.md](../WORK_PLAN.md#phase-5-intelligence-layer-weeks-21-26)
-- See [PR_BREAKDOWN.md](../PR_BREAKDOWN.md#milestone-05---compiler--planner-agents)
-- See [ROADMAP.md](../ROADMAP.md)
+- See [WORK_PLAN.md](../../WORK_PLAN.md#phase-5-intelligence-layer-weeks-21-26)
+- See [PR_BREAKDOWN.md](../../PR_BREAKDOWN.md#milestone-05---compiler--planner-agents)
+- See [ROADMAP.md](../../ROADMAP.md)
 
 ## Definition of Done
 - [ ] All sub-issues completed and merged
@@ -303,9 +308,9 @@ This is the parent tracking issue for **Phase 6: Advanced Features** (Weeks 27-3
 - **Dependencies**: PR #30 depends on PRs #28 and #29
 
 ## Resources
-- See [WORK_PLAN.md](../WORK_PLAN.md#phase-6-advanced-features-weeks-27-32)
-- See [PR_BREAKDOWN.md](../PR_BREAKDOWN.md#milestone-06---subnet-adaptation--evolution)
-- See [ROADMAP.md](../ROADMAP.md)
+- See [WORK_PLAN.md](../../WORK_PLAN.md#phase-6-advanced-features-weeks-27-32)
+- See [PR_BREAKDOWN.md](../../PR_BREAKDOWN.md#milestone-06---subnet-adaptation--evolution)
+- See [ROADMAP.md](../../ROADMAP.md)
 
 ## Definition of Done
 - [ ] All sub-issues completed and merged
@@ -347,9 +352,9 @@ This is the parent tracking issue for **Phase 7: Beta Release** (Weeks 33-40).
 - **High Priority**: All PRs in this phase are high priority
 
 ## Resources
-- See [WORK_PLAN.md](../WORK_PLAN.md#phase-7-beta-release-preparation-weeks-33-40)
-- See [PR_BREAKDOWN.md](../PR_BREAKDOWN.md#milestone-10---beta-release)
-- See [ROADMAP.md](../ROADMAP.md)
+- See [WORK_PLAN.md](../../WORK_PLAN.md#phase-7-beta-release-preparation-weeks-33-40)
+- See [PR_BREAKDOWN.md](../../PR_BREAKDOWN.md#milestone-10---beta-release)
+- See [ROADMAP.md](../../ROADMAP.md)
 
 ## Definition of Done
 - [ ] All sub-issues completed and merged
@@ -394,9 +399,9 @@ These PRs can be worked on incrementally alongside milestone work:
 - **Continuous**: PRs #38 and #40 are ongoing improvements
 
 ## Resources
-- See [WORK_PLAN.md](../WORK_PLAN.md#continuous-work-throughout-all-phases)
-- See [PR_BREAKDOWN.md](../PR_BREAKDOWN.md#cross-cutting-prs-can-be-done-anytime)
-- See [ROADMAP.md](../ROADMAP.md)
+- See [WORK_PLAN.md](../../WORK_PLAN.md#continuous-work-throughout-all-phases)
+- See [PR_BREAKDOWN.md](../../PR_BREAKDOWN.md#cross-cutting-prs-can-be-done-anytime)
+- See [ROADMAP.md](../../ROADMAP.md)
 
 ## Definition of Done
 - [ ] All sub-issues completed and merged

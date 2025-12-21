@@ -11,8 +11,8 @@ use axum::{
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
-use cortex_grid::{NodeId, PeerStore, GridOrchestrator};
-use cortex_skill::{NetworkSkillRegistry, SkillId};
+use cortex_grid::{NodeId, PeerStore, PeerInfo, Capabilities, GridOrchestrator, LanDiscovery, KademliaDiscovery, Discovery};
+use cortex_skill::NetworkSkillRegistry;
 use cortex_reputation::TrustGraph;
 use cortex_core::runtime::EventBus;
 
@@ -39,19 +39,65 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize node components
     let node_id = NodeId::random();
+    let pubkey = [0u8; 32]; // Placeholder pubkey for discovery
     let peer_store = Arc::new(PeerStore::new(Duration::from_secs(120)));
     let skill_registry = Arc::new(RwLock::new(NetworkSkillRegistry::new(node_id)));
     let trust_graph = Arc::new(RwLock::new(TrustGraph::new(node_id)));
     let event_bus = Arc::new(EventBus::default());
 
     // Create orchestrator
-    let orchestrator = GridOrchestrator::new(
+    let mut orchestrator = GridOrchestrator::new(
         node_id,
         peer_store.as_ref().clone(),
         Arc::clone(&event_bus),
     );
     orchestrator.start().await?;
     let orchestrator = Arc::new(RwLock::new(orchestrator));
+
+    // Start LAN discovery to find other nodes
+    let (mut lan_discovery, mut lan_rx) = LanDiscovery::new(node_id, pubkey, 8080);
+    lan_discovery.start().await?;
+    tracing::info!("🔍 Started LAN discovery for peer detection");
+
+    // Start Kademlia discovery
+    let (mut kad_discovery, mut kad_rx) = KademliaDiscovery::new(node_id, pubkey, 8080)?;
+    kad_discovery.start().await?;
+    tracing::info!("🌐 Started Kademlia discovery");
+
+    // Spawn a task to handle discovered peers
+    let peer_store_clone = Arc::clone(&peer_store);
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                Some(event) = lan_rx.recv() => {
+                    let mut peer = PeerInfo::new(event.peer_id, [0u8; 32]);
+                    // Set capabilities - discovered nodes are assumed to be compute-capable
+                    peer.capabilities = Capabilities {
+                        can_relay: true,
+                        can_store: true,
+                        can_compute: true,
+                        max_storage_mb: 1024,
+                    };
+                    peer.addresses = event.addresses;
+                    peer_store_clone.insert(peer).await;
+                    tracing::info!("📡 LAN discovered compute peer: {:?}", event.peer_id);
+                }
+                Some(event) = kad_rx.recv() => {
+                    let mut peer = PeerInfo::new(event.peer_id, [0u8; 32]);
+                    // Set capabilities - discovered nodes are assumed to be compute-capable
+                    peer.capabilities = Capabilities {
+                        can_relay: true,
+                        can_store: true,
+                        can_compute: true,
+                        max_storage_mb: 1024,
+                    };
+                    peer.addresses = event.addresses;
+                    peer_store_clone.insert(peer).await;
+                    tracing::info!("🌐 Kademlia discovered compute peer: {:?}", event.peer_id);
+                }
+            }
+        }
+    });
 
     let app_state = AppState {
         node_id,

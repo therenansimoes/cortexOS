@@ -21,6 +21,7 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
 zeroize = { workspace = true }
+socket2 = { version = "0.5", features = ["all"] }
 
 [[bench]]
 name = "handshake_benchmark"

@@ -8,6 +8,7 @@ use libp2p::kad::{store::MemoryStore, Mode};
 use libp2p::identity::Keypair;
 use libp2p::multiaddr::Protocol;
 use libp2p::{Multiaddr, Transport};
+use socket2::{Domain, Protocol as SocketProtocol, Socket, Type};
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -172,9 +173,32 @@ impl LanDiscovery {
 #[async_trait]
 impl Discovery for LanDiscovery {
     async fn start(&mut self) -> Result<()> {
-        let socket = UdpSocket::bind(format!("0.0.0.0:{}", MULTICAST_PORT))
-            .await
-            .map_err(|e| GridError::DiscoveryError(e.to_string()))?;
+        // Create socket with SO_REUSEADDR/SO_REUSEPORT for multicast sharing
+        let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(SocketProtocol::UDP))
+            .map_err(|e| GridError::DiscoveryError(format!("Failed to create socket: {}", e)))?;
+        
+        // Allow multiple processes to bind to the same port (required for multicast)
+        socket.set_reuse_address(true)
+            .map_err(|e| GridError::DiscoveryError(format!("Failed to set SO_REUSEADDR: {}", e)))?;
+        
+        #[cfg(not(windows))]
+        socket.set_reuse_port(true)
+            .map_err(|e| GridError::DiscoveryError(format!("Failed to set SO_REUSEPORT: {}", e)))?;
+        
+        socket.set_nonblocking(true)
+            .map_err(|e| GridError::DiscoveryError(format!("Failed to set nonblocking: {}", e)))?;
+        
+        let bind_addr: std::net::SocketAddrV4 = format!("0.0.0.0:{}", MULTICAST_PORT)
+            .parse()
+            .map_err(|e| GridError::DiscoveryError(format!("Invalid bind address: {}", e)))?;
+        
+        socket.bind(&bind_addr.into())
+            .map_err(|e| GridError::DiscoveryError(format!("Failed to bind: {}", e)))?;
+        
+        // Convert to tokio UdpSocket
+        let std_socket: std::net::UdpSocket = socket.into();
+        let socket = UdpSocket::from_std(std_socket)
+            .map_err(|e| GridError::DiscoveryError(format!("Failed to create tokio socket: {}", e)))?;
 
         let multicast_addr: std::net::Ipv4Addr = MULTICAST_ADDR
             .parse()

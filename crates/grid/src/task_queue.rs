@@ -4,10 +4,9 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use crate::peer::NodeId;
-use crate::wire::TaskStatus;
 
 /// Priority levels for tasks
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TaskPriority {
     Low = 0,
     Normal = 1,

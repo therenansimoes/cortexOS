@@ -2,24 +2,19 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info};
 
 use cortex_core::event::{Event, Payload};
 use cortex_core::runtime::EventBus;
 use cortex_grid::{
-    GridError, GridOrchestrator, Message, MetricsTracker, NodeId, QueuedTask,
-    TaskPriority, TaskQueue, TaskStatus as GridTaskStatus,
+    GridOrchestrator, MetricsTracker, NodeId, QueuedTask,
+    TaskPriority, TaskQueue,
 };
-use cortex_reputation::{SkillId, TrustGraph};
-
-use crate::definition::SkillInput;
 use crate::error::{SkillError, Result};
 use crate::executor::SkillExecutor;
-use crate::registry::{LocalSkillRegistry, NetworkSkillRegistry};
 use crate::router::SkillRouter;
-use crate::task::{SkillTask, TaskId, TaskResult, TaskStatus};
+use crate::task::{SkillTask, TaskId, TaskResult};
 
-const MAX_RETRIES: u32 = 3;
 const TASK_TIMEOUT_SECS: u64 = 300; // 5 minutes
 
 /// Coordinates task delegation across the Grid
@@ -75,32 +70,35 @@ impl DelegationCoordinator {
     pub async fn submit_task(&self, task: SkillTask) -> Result<TaskId> {
         info!("Submitting task {} for skill {}", task.id, task.skill);
 
+        // Save task ID before any moves
+        let task_id = task.id;
+
         // Route the task to find the best node
         let route_decision = self.router.route(&task).await?;
         let target_node = route_decision.node;
 
         debug!(
             "Routed task {} to node {} (score: {:.2})",
-            task.id, target_node, route_decision.route_score
+            task_id, target_node, route_decision.route_score
         );
 
         // Record metrics
         self.metrics.record_submitted(target_node).await;
 
         // Store task
-        self.active_tasks.write().await.insert(task.id, task.clone());
+        self.active_tasks.write().await.insert(task_id, task.clone());
 
         // Encode task payload
         let payload = bincode::serialize(&task)
             .map_err(|e| SkillError::SerializationError(e.to_string()))?;
 
         // Generate Grid task ID from SkillTask ID
-        let grid_task_id = task_id_to_bytes(&task.id);
+        let grid_task_id = task_id_to_bytes(&task_id);
 
         // Create queued task
         let queued_task = QueuedTask {
             task_id: grid_task_id,
-            payload,
+            payload: payload.clone(),
             priority: TaskPriority::from(task.priority),
             target_node: Some(target_node),
             retries: 0,
@@ -114,7 +112,7 @@ impl DelegationCoordinator {
 
         // If target is self, execute locally
         if target_node == self.my_id {
-            info!("Task {} assigned to self, executing locally", task.id);
+            info!("Task {} assigned to self, executing locally", task_id);
             let result = self.executor.execute_task(task).await;
             self.handle_result(result).await?;
         } else {
@@ -125,7 +123,7 @@ impl DelegationCoordinator {
                 .map_err(|e| SkillError::DelegationFailed(e.to_string()))?;
         }
 
-        Ok(task.id)
+        Ok(task_id)
     }
 
     /// Handle a task result (local or remote)
@@ -134,7 +132,7 @@ impl DelegationCoordinator {
         let success = result.success;
 
         // Remove from active tasks
-        if let Some(task) = self.active_tasks.write().await.remove(&task_id) {
+        if let Some(_task) = self.active_tasks.write().await.remove(&task_id) {
             // Record metrics
             if success {
                 let duration = std::time::Duration::from_millis(result.duration_ms);
@@ -212,7 +210,7 @@ impl DelegationCoordinator {
 
         // Spawn task processor
         let task_queue_proc = Arc::clone(&self.task_queue);
-        let orchestrator_proc = Arc::clone(&self.orchestrator);
+        let _orchestrator_proc = Arc::clone(&self.orchestrator);
         let active_tasks_proc = Arc::clone(&self.active_tasks);
         let executor_proc = Arc::clone(&self.executor);
         let my_id_proc = self.my_id;
@@ -311,6 +309,8 @@ fn task_id_to_bytes(task_id: &TaskId) -> [u8; 32] {
 mod tests {
     use super::*;
     use cortex_grid::PeerStore;
+    use cortex_reputation::TrustGraph;
+    use crate::registry::{LocalSkillRegistry, NetworkSkillRegistry};
     use std::time::Duration;
 
     #[tokio::test]

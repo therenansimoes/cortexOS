@@ -5,7 +5,10 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 use tokio::sync::RwLock;
+use tracing::{info, warn};
 
 use crate::AppState;
 use cortex_grid::{NodeId, PeerStore};
@@ -67,7 +70,28 @@ pub struct StatsResponse {
 #[derive(Deserialize)]
 pub struct DelegateTaskRequest {
     pub payload: String,
+    pub skill: Option<String>,
     pub target_node: Option<String>,
+}
+
+/// Task request sent over network
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TaskNetworkRequest {
+    task_id: String,
+    skill: String,
+    payload: String,
+    from_node: String,
+}
+
+/// Task response from remote node
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TaskNetworkResponse {
+    task_id: String,
+    success: bool,
+    result: Option<String>,
+    error: Option<String>,
+    executor_node: String,
+    execution_time_ms: u64,
 }
 
 pub async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResponse>, StatusCode> {
@@ -135,33 +159,153 @@ pub async fn delegate_task(
     State(state): State<AppState>,
     Json(request): Json<DelegateTaskRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let payload = request.payload.as_bytes().to_vec();
-    let task_id_hash = blake3::hash(&payload);
-    let task_id: [u8; 32] = *task_id_hash.as_bytes();
+    let payload = request.payload.clone();
+    let task_id_hash = blake3::hash(payload.as_bytes());
+    let task_id = hex::encode(&task_id_hash.as_bytes()[..8]);
+    let skill = request.skill.clone().unwrap_or_else(|| "general".to_string());
 
-    if let Some(orchestrator) = &state.orchestrator {
-        let orch = orchestrator.write().await;
-        match orch.delegate_task(task_id, payload).await {
-            Ok(target_node) => {
-                Ok(Json(serde_json::json!({
-                    "success": true,
-                    "task_id": hex::encode(&task_id[..8]),
-                    "target_node": target_node.to_string(),
-                })))
+    // Find compute peers
+    let peers = state.peer_store
+        .find_by_capability(|caps| caps.can_compute)
+        .await;
+
+    if peers.is_empty() {
+        return Ok(Json(serde_json::json!({
+            "success": false,
+            "error": "No compute peers available",
+        })));
+    }
+
+    // Try each peer until we find one with the skill
+    for target_peer in &peers {
+        // Get peer address - they should have at least one address
+        // The task server runs on port + 1000 from the discovery port
+        let task_addr = if let Some(addr) = target_peer.addresses.first() {
+            let addr_str = addr.to_string();
+            if let Some(ip) = extract_ip_from_multiaddr(&addr_str) {
+                let discovery_port = extract_port_from_multiaddr(&addr_str).unwrap_or(7654);
+                let task_port = discovery_port + 1000;
+                format!("{}:{}", ip, task_port)
+            } else {
+                continue; // Skip this peer if we can't parse address
+            }
+        } else {
+            continue;
+        };
+
+        info!("📤 Trying task {} on {} at {}", task_id, target_peer.node_id, task_addr);
+
+        // Send task via TCP
+        match send_task_tcp(&task_addr, &task_id, &skill, &payload, &state.node_id.to_string()).await {
+            Ok(response) => {
+                if response.success {
+                    info!("✅ Task {} completed by {} in {}ms", 
+                        task_id, response.executor_node, response.execution_time_ms);
+                    return Ok(Json(serde_json::json!({
+                        "success": true,
+                        "task_id": task_id,
+                        "target_node": target_peer.node_id.to_string(),
+                        "result": response.result,
+                        "execution_time_ms": response.execution_time_ms,
+                    })));
+                } else {
+                    // Skill not available on this node, try next
+                    info!("⏭️ Node {} doesn't have skill '{}', trying next...", target_peer.node_id, skill);
+                    continue;
+                }
             }
             Err(e) => {
-                Ok(Json(serde_json::json!({
-                    "success": false,
-                    "error": e.to_string(),
-                })))
+                warn!("⚠️ Failed to connect to {}: {}", task_addr, e);
+                continue;
             }
         }
-    } else {
-        Ok(Json(serde_json::json!({
-            "success": false,
-            "error": "Orchestrator not available",
-        })))
     }
+
+    // No peer had the skill
+    Ok(Json(serde_json::json!({
+        "success": false,
+        "error": format!("No peer found with skill '{}'", skill),
+    })))
+}
+
+/// Extract IP address from address string (handles both "IP:port" and multiaddr formats)
+fn extract_ip_from_multiaddr(addr: &str) -> Option<String> {
+    // First try simple IP:port format (e.g., "192.168.1.250:7655")
+    if let Some(ip) = addr.split(':').next() {
+        if ip.contains('.') || ip.contains(':') {
+            // Looks like an IP address
+            return Some(ip.to_string());
+        }
+    }
+    
+    // Try multiaddr format "/ip4/192.168.1.1/tcp/7654"
+    let parts: Vec<&str> = addr.split('/').collect();
+    for (i, part) in parts.iter().enumerate() {
+        if *part == "ip4" || *part == "ip6" {
+            if i + 1 < parts.len() {
+                return Some(parts[i + 1].to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Extract port from address string (handles both "IP:port" and multiaddr formats)
+fn extract_port_from_multiaddr(addr: &str) -> Option<u16> {
+    // First try simple IP:port format
+    if let Some(port_str) = addr.rsplit(':').next() {
+        if let Ok(port) = port_str.parse::<u16>() {
+            return Some(port);
+        }
+    }
+    
+    // Try multiaddr format
+    let parts: Vec<&str> = addr.split('/').collect();
+    for (i, part) in parts.iter().enumerate() {
+        if *part == "tcp" || *part == "udp" {
+            if i + 1 < parts.len() {
+                return parts[i + 1].parse().ok();
+            }
+        }
+    }
+    None
+}
+
+/// Send a task to a remote node via TCP
+async fn send_task_tcp(
+    target_addr: &str,
+    task_id: &str,
+    skill: &str,
+    payload: &str,
+    from_node: &str,
+) -> Result<TaskNetworkResponse, Box<dyn std::error::Error + Send + Sync>> {
+    let mut stream = TcpStream::connect(target_addr).await?;
+    
+    let request = TaskNetworkRequest {
+        task_id: task_id.to_string(),
+        skill: skill.to_string(),
+        payload: payload.to_string(),
+        from_node: from_node.to_string(),
+    };
+
+    let request_bytes = serde_json::to_vec(&request)?;
+    let len_bytes = (request_bytes.len() as u32).to_be_bytes();
+    
+    stream.write_all(&len_bytes).await?;
+    stream.write_all(&request_bytes).await?;
+    stream.flush().await?;
+
+    // Read response
+    let mut len_buf = [0u8; 4];
+    stream.read_exact(&mut len_buf).await?;
+    let len = u32::from_be_bytes(len_buf) as usize;
+    
+    let mut response_buf = vec![0u8; len];
+    stream.read_exact(&mut response_buf).await?;
+    
+    let response: TaskNetworkResponse = serde_json::from_slice(&response_buf)?;
+    
+    Ok(response)
 }
 
 pub async fn get_stats(State(state): State<AppState>) -> Result<Json<StatsResponse>, StatusCode> {

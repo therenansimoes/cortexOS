@@ -15,8 +15,10 @@ use cortex_core::runtime::{EventBus, Runtime};
 
 mod config;
 mod network;
+mod task_server;
 
 use config::NodeConfig;
+use task_server::TaskServer;
 
 #[derive(Parser)]
 #[command(name = "cortexd")]
@@ -148,6 +150,12 @@ async fn run_daemon(config: NodeConfig) -> Result<(), Box<dyn std::error::Error>
     let (relay_node, mut relay_rx) = RelayNode::new(node_id);
     relay_node.start().await?;
     info!("📡 Relay mesh started");
+
+    // Start task server to receive tasks from other nodes
+    let task_port = config.port + 1000; // Task server on port + 1000
+    let task_server = TaskServer::new(node_id, task_port, config.skills.clone());
+    task_server.start().await?;
+    info!("🎯 Task server on port {}", task_port);
 
     // Start LAN discovery
     info!("🔍 Starting LAN discovery...");

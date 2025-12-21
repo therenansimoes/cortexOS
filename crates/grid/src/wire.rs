@@ -27,10 +27,13 @@ pub enum Message {
         node_id: NodeId,
         pubkey: [u8; 32],
         capabilities: Vec<u8>,
+        x25519_pubkey: [u8; 32],
+        timestamp: u64,
         signature: Vec<u8>,
     },
     Challenge {
         nonce: [u8; 32],
+        x25519_pubkey: [u8; 32],
     },
     Prove {
         #[serde(with = "BigArray")]

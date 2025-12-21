@@ -5,12 +5,24 @@ edition.workspace = true
 
 [dependencies]
 cortex-core = { path = "../core" }
-async-trait = "0.1"
-tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
-tracing = "0.1"
-serde = { version = "1", features = ["derive"] }
-rand = "0.8"
-thiserror = "1.0"
+
+# Async runtime
+tokio.workspace = true
+async-trait.workspace = true
+
+# Serialization
+serde.workspace = true
+bincode.workspace = true
+
+# Random number generation for evolution
+rand.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber.workspace = true

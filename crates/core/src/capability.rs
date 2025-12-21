@@ -248,4 +248,124 @@ mod tests {
         assert!(pattern_matches("exact", "exact"));
         assert!(!pattern_matches("sensor.*", "grid.msg"));
     }
+
+    #[test]
+    fn test_fs_write_capability() {
+        let cap = Capability::fs_write(vec![PathBuf::from("/data")]);
+        let mut caps = CapabilitySet::new();
+        caps.add(cap);
+        
+        assert!(caps.check_fs_write(&PathBuf::from("/data/file.txt")));
+        assert!(!caps.check_fs_read(&PathBuf::from("/data/file.txt")));
+    }
+
+    #[test]
+    fn test_fs_read_write_capability() {
+        let cap = Capability::fs_read_write(vec![PathBuf::from("/home")]);
+        let caps = CapabilitySet::new().with_capability(cap);
+        
+        assert!(caps.check_fs_read(&PathBuf::from("/home/user/doc.txt")));
+        assert!(caps.check_fs_write(&PathBuf::from("/home/user/doc.txt")));
+    }
+
+    #[test]
+    fn test_network_tcp() {
+        let cap = Capability::network_tcp(vec!["example.com".to_string()]);
+        let caps = CapabilitySet::new().with_capability(cap);
+        
+        assert!(caps.check_network("example.com", true));
+        assert!(!caps.check_network("example.com", false)); // UDP not allowed
+    }
+
+    #[test]
+    fn test_network_udp() {
+        let cap = Capability::network_udp(vec!["localhost".to_string()]);
+        let caps = CapabilitySet::new().with_capability(cap);
+        
+        assert!(caps.check_network("localhost", false));
+        assert!(!caps.check_network("localhost", true)); // TCP not allowed
+    }
+
+    #[test]
+    fn test_grid_capabilities() {
+        let relay_cap = Capability::grid_relay();
+        let worker_cap = Capability::grid_worker();
+        let full_cap = Capability::grid_full();
+        
+        let relay_caps = CapabilitySet::new().with_capability(relay_cap);
+        assert!(relay_caps.check_grid_relay());
+        assert!(!relay_caps.check_grid_task_accept());
+        
+        let worker_caps = CapabilitySet::new().with_capability(worker_cap);
+        assert!(!worker_caps.check_grid_relay());
+        assert!(worker_caps.check_grid_task_accept());
+        
+        let full_caps = CapabilitySet::new().with_capability(full_cap);
+        assert!(full_caps.check_grid_relay());
+        assert!(full_caps.check_grid_task_accept());
+    }
+
+    #[test]
+    fn test_sensor_types() {
+        let caps = CapabilitySet::new()
+            .with_capability(Capability::sensor(SensorType::Camera))
+            .with_capability(Capability::sensor(SensorType::Microphone))
+            .with_capability(Capability::sensor(SensorType::Custom("GPS".to_string())));
+        
+        assert!(caps.check_sensor(&SensorType::Camera));
+        assert!(caps.check_sensor(&SensorType::Microphone));
+        assert!(caps.check_sensor(&SensorType::Custom("GPS".to_string())));
+        assert!(!caps.check_sensor(&SensorType::Keyboard));
+    }
+
+    #[test]
+    fn test_capability_set_operations() {
+        let mut caps = CapabilitySet::new();
+        assert!(caps.is_empty());
+        assert_eq!(caps.len(), 0);
+        
+        let cap = Capability::sensor(SensorType::Screen);
+        caps.add(cap.clone());
+        assert!(!caps.is_empty());
+        assert_eq!(caps.len(), 1);
+        assert!(caps.has(&cap));
+        
+        assert!(caps.remove(&cap));
+        assert!(caps.is_empty());
+        assert!(!caps.has(&cap));
+    }
+
+    #[test]
+    fn test_eventbus_capabilities() {
+        let cap = Capability::EventBus {
+            publish: vec!["sensor.*".to_string()],
+            subscribe: vec!["grid.*".to_string(), "agent.intent".to_string()],
+        };
+        let caps = CapabilitySet::new().with_capability(cap);
+        
+        assert!(caps.check_publish("sensor.mic"));
+        assert!(caps.check_publish("sensor.camera"));
+        assert!(!caps.check_publish("grid.msg"));
+        
+        assert!(caps.check_subscribe("grid.*"));
+        assert!(caps.check_subscribe("agent.intent"));
+        assert!(!caps.check_subscribe("sensor.*"));
+    }
+
+    #[test]
+    fn test_capability_iterator() {
+        let caps = CapabilitySet::new()
+            .with_capability(Capability::sensor(SensorType::Microphone))
+            .with_capability(Capability::grid_relay());
+        
+        let count = caps.iter().count();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_pattern_wildcard() {
+        assert!(pattern_matches("test*", "test123"));
+        assert!(pattern_matches("test*", "test"));
+        assert!(!pattern_matches("test*", "tes"));
+    }
 }

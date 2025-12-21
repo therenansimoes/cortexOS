@@ -1,11 +1,16 @@
 [package]
-name = "multi-hop-demo"
+name = "example-multi-hop"
 version.workspace = true
 edition.workspace = true
+
+[[bin]]
+name = "multi-hop"
+path = "src/main.rs"
 
 [dependencies]
 cortex-core = { path = "../../crates/core" }
 cortex-signal = { path = "../../crates/signal" }
-tokio = { version = "1", features = ["full"] }
-tracing = "0.1"
-tracing-subscriber = "0.3"
+
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

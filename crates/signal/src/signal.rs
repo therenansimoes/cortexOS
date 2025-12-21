@@ -10,7 +10,7 @@ pub enum Channel {
     Radio,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pulse {
     pub on: bool,
     pub duration_us: u32,

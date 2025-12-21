@@ -85,7 +85,7 @@ impl SignalForwarder {
         message.increment_hop();
 
         let next_hop = self.router.next_hop(&message.destination).await?;
-        
+
         debug!(
             source = %message.source,
             destination = %message.destination,
@@ -95,7 +95,7 @@ impl SignalForwarder {
         );
 
         self.pending_forwards.write().await.push(message);
-        
+
         Ok(())
     }
 
@@ -105,11 +105,14 @@ impl SignalForwarder {
         payload: Vec<u8>,
         preferred_channel: Option<Channel>,
     ) -> Result<(), EmitError> {
-        let route = self.router.find_route(&destination).await
+        let route = self
+            .router
+            .find_route(&destination)
+            .await
             .map_err(|_| EmitError::ChannelUnavailable(Channel::Ble))?;
 
         let channel = preferred_channel.unwrap_or(route.quality.channel);
-        
+
         let emitters = self.emitters.read().await;
         let emitter = emitters
             .get(&channel)
@@ -118,7 +121,7 @@ impl SignalForwarder {
         let codebook = self.codebook.read().await;
         let beacon_symbol = StandardSymbol::Beacon.to_symbol_id();
         let pattern = codebook.encode(beacon_symbol)?;
-        
+
         info!(
             destination = %destination,
             channel = ?channel,
@@ -127,7 +130,7 @@ impl SignalForwarder {
         );
 
         emitter.emit(pattern).await?;
-        
+
         Ok(())
     }
 
@@ -136,7 +139,7 @@ impl SignalForwarder {
         receiver: &R,
     ) -> Result<Option<ForwardedMessage>, RoutingError> {
         let codebook = self.codebook.read().await;
-        
+
         match receiver.decode(&codebook).await {
             Ok(signal) => {
                 debug!(
@@ -144,12 +147,10 @@ impl SignalForwarder {
                     symbol = ?signal.symbol,
                     "Received signal on multi-hop network"
                 );
-                
+
                 Ok(None)
             }
-            Err(_) => {
-                Ok(None)
-            }
+            Err(_) => Ok(None),
         }
     }
 
@@ -174,7 +175,7 @@ impl SignalForwarder {
         );
 
         emitter.emit(pattern).await?;
-        
+
         Ok(())
     }
 
@@ -184,7 +185,9 @@ impl SignalForwarder {
         path: Vec<NodeId>,
         quality: RouteQuality,
     ) {
-        self.router.add_discovered_route(source, path, quality).await;
+        self.router
+            .add_discovered_route(source, path, quality)
+            .await;
     }
 
     pub async fn pending_forward_count(&self) -> usize {
@@ -207,9 +210,9 @@ mod tests {
         let source = test_node_id(1);
         let dest = test_node_id(3);
         let payload = vec![1, 2, 3, 4];
-        
+
         let msg = ForwardedMessage::new(source, dest, payload.clone(), 5);
-        
+
         assert_eq!(msg.source, source);
         assert_eq!(msg.destination, dest);
         assert_eq!(msg.payload, payload);
@@ -223,10 +226,10 @@ mod tests {
         let source = test_node_id(1);
         let dest = test_node_id(3);
         let mut msg = ForwardedMessage::new(source, dest, vec![], 2);
-        
+
         msg.increment_hop();
         assert!(msg.can_forward());
-        
+
         msg.increment_hop();
         assert!(!msg.can_forward());
     }
@@ -236,7 +239,7 @@ mod tests {
         let local = test_node_id(1);
         let router = Arc::new(MultiHopRouter::new(local));
         let forwarder = SignalForwarder::new(local, router);
-        
+
         assert_eq!(forwarder.pending_forward_count().await, 0);
     }
 
@@ -245,10 +248,10 @@ mod tests {
         let local = test_node_id(2);
         let router = Arc::new(MultiHopRouter::new(local));
         let forwarder = SignalForwarder::new(local, router);
-        
+
         let mut msg = ForwardedMessage::new(test_node_id(1), test_node_id(3), vec![], 1);
         msg.hop_count = 1;
-        
+
         let result = forwarder.forward_message(msg).await;
         assert!(matches!(result, Err(RoutingError::MaxHopsExceeded)));
     }

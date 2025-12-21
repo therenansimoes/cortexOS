@@ -176,7 +176,7 @@ impl SkillRating {
     pub fn add_weighted_rating(&mut self, rating: Rating, rater_trust: f32) {
         let weight = rater_trust.clamp(0.0, 1.0);
         self.weighted_score += rating.value() * weight;
-        
+
         if rating.is_positive() {
             self.positive_count += 1;
         } else if rating.is_negative() {

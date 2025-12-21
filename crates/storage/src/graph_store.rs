@@ -98,9 +98,7 @@ impl MemoryGraphStore {
                 ThoughtContent::Perception { summary, .. } => {
                     summary.to_lowercase().contains(&text_lower)
                 }
-                ThoughtContent::Intention { goal, .. } => {
-                    goal.to_lowercase().contains(&text_lower)
-                }
+                ThoughtContent::Intention { goal, .. } => goal.to_lowercase().contains(&text_lower),
                 ThoughtContent::Action { description, .. } => {
                     description.to_lowercase().contains(&text_lower)
                 }

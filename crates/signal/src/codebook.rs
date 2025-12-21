@@ -94,7 +94,12 @@ impl Codebook {
             (StandardSymbol::Ack, vec![Pulse::on(100), Pulse::off(100)]),
             (
                 StandardSymbol::Nak,
-                vec![Pulse::on(100), Pulse::off(100), Pulse::on(100), Pulse::off(100)],
+                vec![
+                    Pulse::on(100),
+                    Pulse::off(100),
+                    Pulse::on(100),
+                    Pulse::off(100),
+                ],
             ),
             (
                 StandardSymbol::TaskRequest,
@@ -235,14 +240,15 @@ mod tests {
     fn test_propose_symbol() {
         let mut codebook = Codebook::new();
         let custom_symbol = SymbolId::from_bytes(b"CUSTOM_SIGNAL");
-        let custom_pattern = SignalPattern::new(vec![
-            Pulse::on(250),
-            Pulse::off(250),
-            Pulse::on(250),
-        ]);
+        let custom_pattern =
+            SignalPattern::new(vec![Pulse::on(250), Pulse::off(250), Pulse::on(250)]);
 
         codebook
-            .propose_symbol(custom_symbol, custom_pattern.clone(), Some("Custom test signal".into()))
+            .propose_symbol(
+                custom_symbol,
+                custom_pattern.clone(),
+                Some("Custom test signal".into()),
+            )
             .unwrap();
 
         let encoded = codebook.encode(custom_symbol).unwrap();

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 use crate::error::{GridError, Result};
 use crate::peer::{NodeId, PeerStore};
@@ -15,11 +15,11 @@ const MAX_RETRIES: u32 = 3;
 
 #[derive(Debug, Clone)]
 struct PendingTask {
-    #[allow(dead_code)]  // Used for debugging and future implementations
+    #[allow(dead_code)] // Used for debugging and future implementations
     task_id: [u8; 32],
-    #[allow(dead_code)]  // May be used for retry logic
+    #[allow(dead_code)] // May be used for retry logic
     payload: Vec<u8>,
-    #[allow(dead_code)]  // Used for routing retries
+    #[allow(dead_code)] // Used for routing retries
     target_node: NodeId,
     created_at: Instant,
     retries: u32,
@@ -38,11 +38,7 @@ pub struct GridOrchestrator {
 }
 
 impl GridOrchestrator {
-    pub fn new(
-        local_node_id: NodeId,
-        peer_store: PeerStore,
-        event_bus: Arc<EventBus>,
-    ) -> Self {
+    pub fn new(local_node_id: NodeId, peer_store: PeerStore, event_bus: Arc<EventBus>) -> Self {
         let (message_tx, message_rx) = mpsc::channel(256);
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
 
@@ -72,9 +68,7 @@ impl GridOrchestrator {
             Message::TaskRequest { task_id, payload } => {
                 self.handle_task_request(from, task_id, payload).await
             }
-            Message::TaskAck { task_id, status } => {
-                self.handle_task_ack(task_id, status).await
-            }
+            Message::TaskAck { task_id, status } => self.handle_task_ack(task_id, status).await,
             _ => {
                 debug!("Ignoring non-task message: {:?}", message);
                 Ok(())
@@ -134,7 +128,11 @@ impl GridOrchestrator {
     }
 
     async fn handle_task_ack(&self, task_id: [u8; 32], status: TaskStatus) -> Result<()> {
-        info!("Received task ack {} with status {:?}", hex_id(&task_id), status);
+        info!(
+            "Received task ack {} with status {:?}",
+            hex_id(&task_id),
+            status
+        );
 
         let mut pending = self.pending_tasks.write().await;
         if let Some(task) = pending.get_mut(&task_id) {
@@ -168,7 +166,12 @@ impl GridOrchestrator {
                     // Check for retries
                     if task.retries < MAX_RETRIES {
                         task.retries += 1;
-                        info!("Will retry task {} (attempt {}/{})", hex_id(&task_id), task.retries, MAX_RETRIES);
+                        info!(
+                            "Will retry task {} (attempt {}/{})",
+                            hex_id(&task_id),
+                            task.retries,
+                            MAX_RETRIES
+                        );
                     } else {
                         warn!("Task {} exceeded max retries", hex_id(&task_id));
                         pending.remove(&task_id);
@@ -214,15 +217,16 @@ impl GridOrchestrator {
 
         // Send task request
         if let Some(tx) = &self.message_tx {
-            tx.send((
-                target_node,
-                Message::TaskRequest { task_id, payload },
-            ))
-            .await
-            .map_err(|_| GridError::ChannelClosed)?;
+            tx.send((target_node, Message::TaskRequest { task_id, payload }))
+                .await
+                .map_err(|_| GridError::ChannelClosed)?;
         }
 
-        info!("Delegated task {} to peer {}", hex_id(&task_id), target_node);
+        info!(
+            "Delegated task {} to peer {}",
+            hex_id(&task_id),
+            target_node
+        );
 
         Ok(target_node)
     }

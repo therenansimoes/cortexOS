@@ -27,7 +27,11 @@ pub struct HandshakeContext {
 }
 
 impl HandshakeContext {
-    pub fn new(local_node_id: NodeId, local_signing_key: SigningKey, capabilities: Capabilities) -> Self {
+    pub fn new(
+        local_node_id: NodeId,
+        local_signing_key: SigningKey,
+        capabilities: Capabilities,
+    ) -> Self {
         Self {
             state: HandshakeState::Initial,
             local_node_id,
@@ -126,7 +130,16 @@ impl Handshaker {
 
     pub fn process(&mut self, msg: Message) -> Result<Option<Message>> {
         match (&self.context.state, msg) {
-            (HandshakeState::Initial, Message::Hello { protocol_version, node_id, pubkey, capabilities, signature }) => {
+            (
+                HandshakeState::Initial,
+                Message::Hello {
+                    protocol_version,
+                    node_id,
+                    pubkey,
+                    capabilities,
+                    signature,
+                },
+            ) => {
                 self.verify_hello(protocol_version, node_id, pubkey, &capabilities, &signature)?;
                 self.context.remote_node_id = Some(node_id);
                 self.context.remote_pubkey = Some(pubkey);
@@ -147,13 +160,15 @@ impl Handshaker {
             }
 
             (HandshakeState::Initial, Message::Prove { response }) => {
-                let nonce = self.context.nonce.ok_or_else(|| {
-                    GridError::HandshakeFailed("No nonce set".to_string())
-                })?;
+                let nonce = self
+                    .context
+                    .nonce
+                    .ok_or_else(|| GridError::HandshakeFailed("No nonce set".to_string()))?;
 
-                let remote_pubkey = self.context.remote_pubkey.ok_or_else(|| {
-                    GridError::HandshakeFailed("No remote pubkey".to_string())
-                })?;
+                let remote_pubkey = self
+                    .context
+                    .remote_pubkey
+                    .ok_or_else(|| GridError::HandshakeFailed("No remote pubkey".to_string()))?;
 
                 self.verify_prove(&response, &nonce, &remote_pubkey)?;
                 info!("PROVE verified successfully");
@@ -164,7 +179,10 @@ impl Handshaker {
             }
 
             (HandshakeState::ProveSent, Message::Welcome { session_params }) => {
-                info!("Received WELCOME, session_id: {:?}", &session_params.session_id[..8]);
+                info!(
+                    "Received WELCOME, session_id: {:?}",
+                    &session_params.session_id[..8]
+                );
                 self.context.state = HandshakeState::Completed;
                 Ok(None)
             }
@@ -200,8 +218,8 @@ impl Handshaker {
             return Err(GridError::InvalidNodeId);
         }
 
-        let verifying_key = VerifyingKey::from_bytes(&pubkey)
-            .map_err(|_| GridError::InvalidSignature)?;
+        let verifying_key =
+            VerifyingKey::from_bytes(&pubkey).map_err(|_| GridError::InvalidSignature)?;
 
         let mut sign_data = Vec::new();
         sign_data.extend_from_slice(&protocol_version.to_be_bytes());
@@ -227,8 +245,8 @@ impl Handshaker {
         nonce: &[u8; 32],
         remote_pubkey: &[u8; 32],
     ) -> Result<()> {
-        let verifying_key = VerifyingKey::from_bytes(remote_pubkey)
-            .map_err(|_| GridError::InvalidSignature)?;
+        let verifying_key =
+            VerifyingKey::from_bytes(remote_pubkey).map_err(|_| GridError::InvalidSignature)?;
 
         let sig = Signature::from_bytes(response);
 
@@ -264,17 +282,11 @@ mod tests {
         let initiator_node_id = NodeId::from_pubkey(&initiator_pubkey);
         let responder_node_id = NodeId::from_pubkey(&responder_pubkey);
 
-        let mut initiator = Handshaker::new_initiator(
-            initiator_node_id,
-            initiator_key,
-            Capabilities::default(),
-        );
+        let mut initiator =
+            Handshaker::new_initiator(initiator_node_id, initiator_key, Capabilities::default());
 
-        let mut responder = Handshaker::new_responder(
-            responder_node_id,
-            responder_key,
-            Capabilities::default(),
-        );
+        let mut responder =
+            Handshaker::new_responder(responder_node_id, responder_key, Capabilities::default());
 
         let hello = initiator.start();
         let challenge = responder.process(hello).unwrap().unwrap();

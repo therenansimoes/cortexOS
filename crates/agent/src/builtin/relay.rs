@@ -82,7 +82,11 @@ impl RelayAgent {
         self.dropped_count
     }
 
-    async fn handle_beacon(&mut self, beacon: Beacon, ctx: &mut AgentContext) -> Result<(), AgentError> {
+    async fn handle_beacon(
+        &mut self,
+        beacon: Beacon,
+        ctx: &mut AgentContext,
+    ) -> Result<(), AgentError> {
         if beacon.can_relay() {
             let relayed = beacon.relayed();
             let payload = serde_json::to_vec(&relayed).unwrap_or_default();

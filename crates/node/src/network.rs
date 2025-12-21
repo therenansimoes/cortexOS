@@ -19,13 +19,19 @@ impl NetworkManager {
         }
     }
 
-    pub async fn connect_to_peer(&self, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn connect_to_peer(
+        &self,
+        addr: SocketAddr,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // TODO: Implement TCP connection with handshake
         tracing::info!("Connecting to peer at {}", addr);
         Ok(())
     }
 
-    pub async fn broadcast_skills(&self, skills: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn broadcast_skills(
+        &self,
+        skills: &[String],
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // TODO: Broadcast skill announcements to all peers
         tracing::info!("Broadcasting {} skills to network", skills.len());
         Ok(())

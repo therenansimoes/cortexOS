@@ -1,13 +1,13 @@
 use async_trait::async_trait;
 use futures::StreamExt;
-use libp2p::mdns;
-use libp2p::swarm::SwarmEvent;
-use libp2p::{PeerId, Swarm};
+use libp2p::identity::Keypair;
 use libp2p::kad;
 use libp2p::kad::{store::MemoryStore, Mode};
-use libp2p::identity::Keypair;
+use libp2p::mdns;
 use libp2p::multiaddr::Protocol;
+use libp2p::swarm::SwarmEvent;
 use libp2p::{Multiaddr, Transport};
+use libp2p::{PeerId, Swarm};
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -90,11 +90,7 @@ impl LanDiscovery {
         Some((NodeId(node_id), pubkey, port))
     }
 
-    async fn run_announcer(
-        socket: Arc<UdpSocket>,
-        packet: Vec<u8>,
-        running: Arc<RwLock<bool>>,
-    ) {
+    async fn run_announcer(socket: Arc<UdpSocket>, packet: Vec<u8>, running: Arc<RwLock<bool>>) {
         let multicast_addr: SocketAddr = format!("{}:{}", MULTICAST_ADDR, MULTICAST_PORT)
             .parse()
             .unwrap();
@@ -231,9 +227,10 @@ impl MdnsDiscovery {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        let swarm = self.swarm.as_mut().ok_or_else(|| {
-            GridError::DiscoveryError("Swarm not initialized".to_string())
-        })?;
+        let swarm = self
+            .swarm
+            .as_mut()
+            .ok_or_else(|| GridError::DiscoveryError("Swarm not initialized".to_string()))?;
 
         loop {
             match swarm.select_next_some().await {
@@ -350,7 +347,7 @@ impl KademliaDiscovery {
                             ..
                         }) => {
                             debug!("Kademlia: Routing updated for peer {} with {} addresses", peer, addresses.len());
-                            
+
                             // Convert PeerId to NodeId
                             let peer_bytes = peer.to_bytes();
                             let mut node_id_bytes = [0u8; 32];
@@ -384,7 +381,7 @@ impl KademliaDiscovery {
                                 let peer_info = discovered_map
                                     .entry(node_id)
                                     .or_insert_with(|| PeerInfo::new(node_id, [0u8; 32]));
-                                
+
                                 peer_info.addresses = socket_addrs.clone();
                                 peer_info.touch();
 
@@ -425,10 +422,10 @@ impl Discovery for KademliaDiscovery {
         let listen_port = self.listen_port;
         let discovered = Arc::clone(&self.discovered);
         let running = Arc::clone(&self.running);
-        
+
         // Create a channel for events
         let (tx, _rx) = mpsc::channel(64);
-        
+
         // Spawn the event loop
         tokio::spawn(async move {
             if let Err(e) = Self::run_event_loop(
@@ -438,7 +435,9 @@ impl Discovery for KademliaDiscovery {
                 discovered,
                 tx,
                 running,
-            ).await {
+            )
+            .await
+            {
                 warn!("Kademlia event loop error: {}", e);
             }
         });

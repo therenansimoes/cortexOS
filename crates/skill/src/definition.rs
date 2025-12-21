@@ -148,7 +148,9 @@ impl SkillInput {
     }
 
     pub fn get_param<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
-        self.params.get(key).and_then(|v| serde_json::from_value(v.clone()).ok())
+        self.params
+            .get(key)
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
 }
 

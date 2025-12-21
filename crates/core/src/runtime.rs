@@ -204,7 +204,10 @@ impl Runtime {
         Ok(())
     }
 
-    pub fn get_agent(&self, name: &str) -> Option<dashmap::mapref::one::Ref<'_, String, AgentHandle>> {
+    pub fn get_agent(
+        &self,
+        name: &str,
+    ) -> Option<dashmap::mapref::one::Ref<'_, String, AgentHandle>> {
         self.agents.get(name)
     }
 

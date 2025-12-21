@@ -35,11 +35,25 @@ impl ThoughtNode {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ThoughtContent {
-    Perception { event_id: EventId, summary: String },
-    Intention { goal: String, status: IntentionStatus },
-    Action { description: String, outcome: Option<Outcome> },
-    Memory { text: String },
-    Concept { name: String, definition: String },
+    Perception {
+        event_id: EventId,
+        summary: String,
+    },
+    Intention {
+        goal: String,
+        status: IntentionStatus,
+    },
+    Action {
+        description: String,
+        outcome: Option<Outcome>,
+    },
+    Memory {
+        text: String,
+    },
+    Concept {
+        name: String,
+        definition: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use cortex_grid::NodeId;
 
-use crate::rating::{RatingRecord, SkillId, SkillRating};
 use crate::error::{ReputationError, Result};
+use crate::rating::{RatingRecord, SkillId, SkillRating};
 
 /// Trust score for a node (0.0 to 1.0)
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -83,7 +83,8 @@ impl TrustGraph {
         let rater_trust = self.get_trust(&record.rater).value();
 
         {
-            let mut entry = self.skill_ratings
+            let mut entry = self
+                .skill_ratings
                 .entry(key.clone())
                 .or_insert_with(|| SkillRating::new(record.skill.clone(), record.ratee));
             entry.add_weighted_rating(record.rating, rater_trust);
@@ -96,7 +97,12 @@ impl TrustGraph {
     }
 
     /// Rate another node for a skill (as myself)
-    pub fn rate(&self, target: NodeId, skill: SkillId, rating: crate::rating::Rating) -> Result<RatingRecord> {
+    pub fn rate(
+        &self,
+        target: NodeId,
+        skill: SkillId,
+        rating: crate::rating::Rating,
+    ) -> Result<RatingRecord> {
         let record = RatingRecord::new(self.my_id, target, skill, rating);
         self.record_rating(record.clone())?;
         Ok(record)
@@ -115,10 +121,7 @@ impl TrustGraph {
         if self.pre_trusted.contains(node) {
             return TrustScore::new(0.9);
         }
-        self.global_trust
-            .get(node)
-            .map(|v| *v)
-            .unwrap_or_default()
+        self.global_trust.get(node).map(|v| *v).unwrap_or_default()
     }
 
     /// Get skill rating for a node
@@ -130,7 +133,8 @@ impl TrustGraph {
 
     /// Find top N nodes for a skill
     pub fn top_nodes_for_skill(&self, skill: &SkillId, limit: usize) -> Vec<(NodeId, SkillRating)> {
-        let mut results: Vec<_> = self.skill_ratings
+        let mut results: Vec<_> = self
+            .skill_ratings
             .iter()
             .filter(|entry| &entry.key().1 == skill)
             .map(|entry| (entry.key().0, entry.value().clone()))
@@ -214,7 +218,8 @@ impl EigenTrust {
         // Normalize to [0, 1] and ensure row sums = 1
         let node_list: Vec<_> = nodes.iter().cloned().collect();
         let n = node_list.len();
-        let node_index: HashMap<_, _> = node_list.iter().enumerate().map(|(i, n)| (*n, i)).collect();
+        let node_index: HashMap<_, _> =
+            node_list.iter().enumerate().map(|(i, n)| (*n, i)).collect();
 
         // Build normalized trust matrix C
         let mut c_matrix: Vec<Vec<f32>> = vec![vec![0.0; n]; n];
@@ -308,7 +313,9 @@ mod tests {
         let other = NodeId::random();
         let graph = TrustGraph::new(my_id);
 
-        let record = graph.rate(other, "coding".into(), Rating::positive()).unwrap();
+        let record = graph
+            .rate(other, "coding".into(), Rating::positive())
+            .unwrap();
         assert!(record.rating.is_positive());
 
         let rating = graph.get_skill_rating(&other, &"coding".into());
@@ -326,13 +333,21 @@ mod tests {
 
         // Node A gets 3 positive ratings
         for _ in 0..3 {
-            graph.rate(node_a, "rust".into(), Rating::positive()).unwrap();
+            graph
+                .rate(node_a, "rust".into(), Rating::positive())
+                .unwrap();
         }
 
         // Node B gets 1 positive, 2 negative
-        graph.rate(node_b, "rust".into(), Rating::positive()).unwrap();
-        graph.rate(node_b, "rust".into(), Rating::negative()).unwrap();
-        graph.rate(node_b, "rust".into(), Rating::negative()).unwrap();
+        graph
+            .rate(node_b, "rust".into(), Rating::positive())
+            .unwrap();
+        graph
+            .rate(node_b, "rust".into(), Rating::negative())
+            .unwrap();
+        graph
+            .rate(node_b, "rust".into(), Rating::negative())
+            .unwrap();
 
         let top = graph.top_nodes_for_skill(&"rust".into(), 10);
         assert_eq!(top.len(), 2);

@@ -1,4 +1,4 @@
-use cortex_inference::{LlamaModel, Model, ModelConfig, GenerationParams, ChatMessage};
+use cortex_inference::{ChatMessage, GenerationParams, LlamaModel, Model, ModelConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -6,13 +6,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     // Check for model path argument
-    let model_path = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| {
-            eprintln!("Usage: {} <path-to-gguf-model>", std::env::args().next().unwrap());
-            eprintln!("Example: {} ./models/tinyllama-1.1b-chat.Q4_K_M.gguf", std::env::args().next().unwrap());
-            std::process::exit(1);
-        });
+    let model_path = std::env::args().nth(1).unwrap_or_else(|| {
+        eprintln!(
+            "Usage: {} <path-to-gguf-model>",
+            std::env::args().next().unwrap()
+        );
+        eprintln!(
+            "Example: {} ./models/tinyllama-1.1b-chat.Q4_K_M.gguf",
+            std::env::args().next().unwrap()
+        );
+        std::process::exit(1);
+    });
 
     println!("=== CortexOS LLM Inference Demo ===");
     println!("Model path: {}", model_path);
@@ -25,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create and load model
     let mut model = LlamaModel::new("demo-model", config);
-    
+
     println!("Loading model...");
     match model.load().await {
         Ok(_) => println!("✓ Model loaded successfully"),

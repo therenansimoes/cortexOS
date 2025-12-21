@@ -9,7 +9,11 @@ pub struct PrivacyFilter {
 impl Default for PrivacyFilter {
     fn default() -> Self {
         Self {
-            allowed_levels: vec![PrivacyLevel::Private, PrivacyLevel::Shareable, PrivacyLevel::Public],
+            allowed_levels: vec![
+                PrivacyLevel::Private,
+                PrivacyLevel::Shareable,
+                PrivacyLevel::Public,
+            ],
         }
     }
 }

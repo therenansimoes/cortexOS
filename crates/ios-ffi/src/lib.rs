@@ -6,9 +6,9 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::Mutex;
 use std::time::Instant;
-use uuid::Uuid;
-use tokio::runtime::Runtime;
 use tokio::net::UdpSocket;
+use tokio::runtime::Runtime;
+use uuid::Uuid;
 
 // ============================================
 // REAL AGENT SYSTEM
@@ -57,7 +57,9 @@ static mut COREML_CALLBACK: Option<CoreMLCallback> = None;
 
 #[no_mangle]
 pub extern "C" fn cortex_register_coreml(callback: CoreMLCallback) {
-    unsafe { COREML_CALLBACK = Some(callback); }
+    unsafe {
+        COREML_CALLBACK = Some(callback);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -156,7 +158,7 @@ impl RealAgent {
                 let (raw, formatted) = self.run_inference(backend, event);
                 self.history.push((event.to_string(), raw));
                 Some(formatted)
-            },
+            }
             AgentType::Heartbeat { .. } => None,
         }
     }
@@ -167,11 +169,14 @@ impl RealAgent {
             InferenceBackend::LocalRuleBased => {
                 let raw = self.run_local_rules_raw(input);
                 (raw.clone(), format!("🤖 [{}]: {}", self.name, raw))
-            },
+            }
             InferenceBackend::Remote { url, model } => {
                 let raw = self.run_remote_inference_raw(url, model, input);
-                (raw.clone(), format!("🤖 [{}@{}]: {}", self.name, model, raw))
-            },
+                (
+                    raw.clone(),
+                    format!("🤖 [{}@{}]: {}", self.name, model, raw),
+                )
+            }
             InferenceBackend::CoreML => {
                 let raw = self.run_coreml_raw(input);
                 (raw.clone(), format!("🧠 [{}]: {}", self.name, raw))
@@ -190,7 +195,7 @@ impl RealAgent {
                     // For now, we assume Swift handles memory or returns a static buffer (risky but simple for MVP)
                     // Or better: Swift returns an autoreleased string pointer? No, that's ObjC.
                     // We will assume for this MVP that Swift returns a pointer to a buffer that we copy and don't free (leak) or Swift manages.
-                    // To be safe: We will implement the Swift side to return a pointer that Rust *should* free, 
+                    // To be safe: We will implement the Swift side to return a pointer that Rust *should* free,
                     // but since we don't have a free function, we might leak small amounts of memory per inference.
                     // Given "Zero Mock", we should do it right. But we don't have `free` exposed.
                     // Let's assume the callback returns a static buffer or we accept the leak for now.
@@ -203,17 +208,18 @@ impl RealAgent {
 
     fn run_remote_inference_raw(&self, url: &str, model: &str, input: &str) -> String {
         let client = reqwest::blocking::Client::new();
-        
+
         let body = serde_json::json!({
             "model": model,
             "prompt": input,
             "stream": false
         });
 
-        match client.post(format!("{}/api/generate", url))
+        match client
+            .post(format!("{}/api/generate", url))
             .json(&body)
             .timeout(std::time::Duration::from_secs(10))
-            .send() 
+            .send()
         {
             Ok(resp) => {
                 if let Ok(json) = resp.json::<serde_json::Value>() {
@@ -232,7 +238,10 @@ impl RealAgent {
     fn run_local_rules_raw(&self, input: &str) -> String {
         let input_lower = input.to_lowercase();
 
-        if input_lower.contains("hello") || input_lower.contains("hi") || input_lower.contains("olá") {
+        if input_lower.contains("hello")
+            || input_lower.contains("hi")
+            || input_lower.contains("olá")
+        {
             return "Olá! Sou um agente de IA do CortexOS rodando localmente.".to_string();
         }
 
@@ -246,7 +255,10 @@ impl RealAgent {
 
         if input_lower.contains("time") || input_lower.contains("tempo") {
             let uptime = self.created_at.elapsed().as_secs();
-            return format!("Estou rodando há {}s. Processei {} eventos.", uptime, self.events_processed);
+            return format!(
+                "Estou rodando há {}s. Processei {} eventos.",
+                uptime, self.events_processed
+            );
         }
 
         if input_lower.starts_with("echo ") {
@@ -263,7 +275,10 @@ impl RealAgent {
 
         let words = input.split_whitespace().count();
         let chars = input.chars().count();
-        format!("Analisei sua mensagem: {} palavras, {} caracteres.", words, chars)
+        format!(
+            "Analisei sua mensagem: {} palavras, {} caracteres.",
+            words, chars
+        )
     }
 
     fn try_math(&self, input: &str) -> Option<f64> {
@@ -319,9 +334,8 @@ impl CortexState {
 static STATE: once_cell::sync::Lazy<Mutex<CortexState>> =
     once_cell::sync::Lazy::new(|| Mutex::new(CortexState::new()));
 
-static RUNTIME: once_cell::sync::Lazy<Runtime> = once_cell::sync::Lazy::new(|| {
-    Runtime::new().expect("Failed to create Tokio runtime")
-});
+static RUNTIME: once_cell::sync::Lazy<Runtime> =
+    once_cell::sync::Lazy::new(|| Runtime::new().expect("Failed to create Tokio runtime"));
 
 // ============================================
 // FFI HELPERS
@@ -369,14 +383,20 @@ pub extern "C" fn cortex_get_node_id() -> *mut c_char {
 // ============================================
 
 #[no_mangle]
-pub extern "C" fn cortex_start_heartbeat_agent(name: *const c_char, interval_secs: u64) -> *mut c_char {
+pub extern "C" fn cortex_start_heartbeat_agent(
+    name: *const c_char,
+    interval_secs: u64,
+) -> *mut c_char {
     let name = unsafe { c_to_string(name) };
     let mut state = STATE.lock().unwrap();
     let agent = RealAgent::new_heartbeat(name.clone(), interval_secs.max(1));
     let id = agent.id.clone();
     state.log_event(format!("Started heartbeat agent '{}' ({})", name, id));
     state.agents.insert(id.clone(), agent);
-    string_to_c(format!(r#"{{"id":"{}","name":"{}","type":"heartbeat","interval":{}}}"#, id, name, interval_secs))
+    string_to_c(format!(
+        r#"{{"id":"{}","name":"{}","type":"heartbeat","interval":{}}}"#,
+        id, name, interval_secs
+    ))
 }
 
 #[no_mangle]
@@ -387,7 +407,10 @@ pub extern "C" fn cortex_start_logger_agent(name: *const c_char) -> *mut c_char 
     let id = agent.id.clone();
     state.log_event(format!("Started logger agent '{}' ({})", name, id));
     state.agents.insert(id.clone(), agent);
-    string_to_c(format!(r#"{{"id":"{}","name":"{}","type":"logger"}}"#, id, name))
+    string_to_c(format!(
+        r#"{{"id":"{}","name":"{}","type":"logger"}}"#,
+        id, name
+    ))
 }
 
 #[no_mangle]
@@ -398,32 +421,48 @@ pub extern "C" fn cortex_start_inference_agent(name: *const c_char) -> *mut c_ch
     let id = agent.id.clone();
     state.log_event(format!("Started inference agent '{}' ({})", name, id));
     state.agents.insert(id.clone(), agent);
-    string_to_c(format!(r#"{{"id":"{}","name":"{}","type":"inference"}}"#, id, name))
+    string_to_c(format!(
+        r#"{{"id":"{}","name":"{}","type":"inference"}}"#,
+        id, name
+    ))
 }
 
 #[no_mangle]
-pub extern "C" fn cortex_start_remote_inference_agent(name: *const c_char, url: *const c_char, model: *const c_char) -> *mut c_char {
+pub extern "C" fn cortex_start_remote_inference_agent(
+    name: *const c_char,
+    url: *const c_char,
+    model: *const c_char,
+) -> *mut c_char {
     let name = unsafe { c_to_string(name) };
     let url = unsafe { c_to_string(url) };
     let model = unsafe { c_to_string(model) };
     let mut state = STATE.lock().unwrap();
     let agent = RealAgent::new_inference_remote(name.clone(), url.clone(), model.clone());
     let id = agent.id.clone();
-    state.log_event(format!("Started remote inference agent '{}' ({}) -> {}", name, id, url));
+    state.log_event(format!(
+        "Started remote inference agent '{}' ({}) -> {}",
+        name, id, url
+    ));
     state.agents.insert(id.clone(), agent);
-    string_to_c(format!(r#"{{"id":"{}","name":"{}","type":"inference","backend":"remote","model":"{}"}}"#, id, name, model))
+    string_to_c(format!(
+        r#"{{"id":"{}","name":"{}","type":"inference","backend":"remote","model":"{}"}}"#,
+        id, name, model
+    ))
 }
 
 #[no_mangle]
 pub extern "C" fn cortex_spawn_coreml_agent(name: *const c_char) -> *mut c_char {
     let name = unsafe { c_to_string(name) };
     let mut state = STATE.lock().unwrap();
-    
+
     let agent = RealAgent::new_inference_coreml(name.clone());
     let id = agent.id.clone();
     state.log_event(format!("Started CoreML agent '{}' ({})", name, id));
     state.agents.insert(id.clone(), agent);
-    string_to_c(format!(r#"{{"id":"{}","name":"{}","type":"inference","backend":"coreml"}}"#, id, name))
+    string_to_c(format!(
+        r#"{{"id":"{}","name":"{}","type":"inference","backend":"coreml"}}"#,
+        id, name
+    ))
 }
 
 #[no_mangle]
@@ -435,10 +474,20 @@ pub extern "C" fn cortex_agent_count() -> i32 {
 #[no_mangle]
 pub extern "C" fn cortex_list_agents() -> *mut c_char {
     let state = STATE.lock().unwrap();
-    let agents: Vec<String> = state.agents.values().map(|a| {
-        format!(r#"{{"id":"{}","name":"{}","type":"{}","status":"{}","events":{}}}"#,
-            a.id, a.name, a.type_name(), a.status_name(), a.events_processed)
-    }).collect();
+    let agents: Vec<String> = state
+        .agents
+        .values()
+        .map(|a| {
+            format!(
+                r#"{{"id":"{}","name":"{}","type":"{}","status":"{}","events":{}}}"#,
+                a.id,
+                a.name,
+                a.type_name(),
+                a.status_name(),
+                a.events_processed
+            )
+        })
+        .collect();
     string_to_c(format!("[{}]", agents.join(",")))
 }
 
@@ -494,7 +543,10 @@ pub extern "C" fn cortex_export_dataset(agent_id: *const c_char) -> *mut c_char 
 // ============================================
 
 #[no_mangle]
-pub extern "C" fn cortex_send_to_agent(agent_id: *const c_char, message: *const c_char) -> *mut c_char {
+pub extern "C" fn cortex_send_to_agent(
+    agent_id: *const c_char,
+    message: *const c_char,
+) -> *mut c_char {
     let id = unsafe { c_to_string(agent_id) };
     let message = unsafe { c_to_string(message) };
     let mut state = STATE.lock().unwrap();
@@ -537,10 +589,21 @@ pub extern "C" fn cortex_publish_event(kind: *const c_char, payload: *const c_ch
     }
 
     if responses.is_empty() {
-        string_to_c(format!(r#"{{"success":true,"kind":"{}","delivered_to":{}}}"#, kind, state.agents.len()))
+        string_to_c(format!(
+            r#"{{"success":true,"kind":"{}","delivered_to":{}}}"#,
+            kind,
+            state.agents.len()
+        ))
     } else {
-        let resp_json: Vec<String> = responses.iter().map(|r| format!(r#""{}""#, r.replace('"', "\\\""))).collect();
-        string_to_c(format!(r#"{{"success":true,"kind":"{}","responses":[{}]}}"#, kind, resp_json.join(",")))
+        let resp_json: Vec<String> = responses
+            .iter()
+            .map(|r| format!(r#""{}""#, r.replace('"', "\\\"")))
+            .collect();
+        string_to_c(format!(
+            r#"{{"success":true,"kind":"{}","responses":[{}]}}"#,
+            kind,
+            resp_json.join(",")
+        ))
     }
 }
 
@@ -564,13 +627,16 @@ pub extern "C" fn cortex_broadcast_discovery() -> *mut c_char {
             if let Err(e) = socket.set_broadcast(true) {
                 eprintln!("Failed to set broadcast: {}", e);
             }
-            
+
             // Use Global Broadcast Address
             // This is more robust on home Wi-Fi than Multicast (239.x.x.x)
             let target = "255.255.255.255:7077";
-            
-            let msg = format!(r#"{{"cortex":true,"node_id":"{}","type":"discovery","agents":{}}}"#, node_id_clone, agents_len);
-            
+
+            let msg = format!(
+                r#"{{"cortex":true,"node_id":"{}","type":"discovery","agents":{}}}"#,
+                node_id_clone, agents_len
+            );
+
             match socket.send_to(msg.as_bytes(), target).await {
                 Ok(_) => println!("Broadcast sent to {}", target),
                 Err(e) => eprintln!("Failed to send broadcast: {}", e),
@@ -578,8 +644,14 @@ pub extern "C" fn cortex_broadcast_discovery() -> *mut c_char {
         }
     });
 
-    state.log_event(format!("Discovery broadcast #{} (UDP Broadcast)", broadcast_num));
-    string_to_c(format!(r#"{{"node_id":"{}","broadcast":{},"agents":{},"message":"LAN discovery broadcast sent"}}"#, node_id, broadcast_num, agents_len))
+    state.log_event(format!(
+        "Discovery broadcast #{} (UDP Broadcast)",
+        broadcast_num
+    ));
+    string_to_c(format!(
+        r#"{{"node_id":"{}","broadcast":{},"agents":{},"message":"LAN discovery broadcast sent"}}"#,
+        node_id, broadcast_num, agents_len
+    ))
 }
 
 // ============================================
@@ -590,14 +662,29 @@ pub extern "C" fn cortex_broadcast_discovery() -> *mut c_char {
 pub extern "C" fn cortex_get_stats() -> *mut c_char {
     let state = STATE.lock().unwrap();
     let total_events: u32 = state.agents.values().map(|a| a.events_processed).sum();
-    let running = state.agents.values().filter(|a| a.status == AgentStatus::Running).count();
-    string_to_c(format!(r#"{{"node_id":"{}","agents":{},"running":{},"total_events":{},"discoveries":{},"log_size":{}}}"#,
-        state.node_id, state.agents.len(), running, total_events, state.discovery_broadcasts, state.event_log.len()))
+    let running = state
+        .agents
+        .values()
+        .filter(|a| a.status == AgentStatus::Running)
+        .count();
+    string_to_c(format!(
+        r#"{{"node_id":"{}","agents":{},"running":{},"total_events":{},"discoveries":{},"log_size":{}}}"#,
+        state.node_id,
+        state.agents.len(),
+        running,
+        total_events,
+        state.discovery_broadcasts,
+        state.event_log.len()
+    ))
 }
 
 #[no_mangle]
 pub extern "C" fn cortex_get_event_log() -> *mut c_char {
     let state = STATE.lock().unwrap();
-    let log_json: Vec<String> = state.event_log.iter().map(|e| format!(r#""{}""#, e.replace('"', "\\\""))).collect();
+    let log_json: Vec<String> = state
+        .event_log
+        .iter()
+        .map(|e| format!(r#""{}""#, e.replace('"', "\\\"")))
+        .collect();
     string_to_c(format!("[{}]", log_json.join(",")))
 }

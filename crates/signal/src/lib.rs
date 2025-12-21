@@ -10,7 +10,9 @@ pub mod signal;
 
 pub use codebook::{Codebook, CodebookEntry, StandardSymbol};
 pub use emitter::{ConsoleEmitter, Emitter, MockEmitter};
-pub use error::{DecodeError, EmitError, NegotiationError, ReceiveError, RoutingError, SignalError};
+pub use error::{
+    DecodeError, EmitError, NegotiationError, ReceiveError, RoutingError, SignalError,
+};
 pub use forwarder::{ForwardedMessage, SignalForwarder};
 pub use negotiation::{ChannelNegotiator, ChannelQuality};
 pub use receiver::{MockReceiver, Receiver};

@@ -23,13 +23,11 @@ impl NodeConfig {
                 .unwrap_or_else(|_| format!("cortex-{}", &uuid::Uuid::new_v4().to_string()[..8]))
         });
 
-        let data_dir = data_dir
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                directories::ProjectDirs::from("com", "cortexos", "cortexd")
-                    .map(|d| d.data_dir().to_path_buf())
-                    .unwrap_or_else(|| PathBuf::from(".cortexos"))
-            });
+        let data_dir = data_dir.map(PathBuf::from).unwrap_or_else(|| {
+            directories::ProjectDirs::from("com", "cortexos", "cortexd")
+                .map(|d| d.data_dir().to_path_buf())
+                .unwrap_or_else(|| PathBuf::from(".cortexos"))
+        });
 
         let skills = skills
             .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
@@ -40,9 +38,9 @@ impl NodeConfig {
             port,
             data_dir,
             skills,
-            enable_kademlia: true,      // Default to enabled
-            enable_orchestrator: true,   // Default to enabled
-            can_compute: true,           // Default to enabled
+            enable_kademlia: true,     // Default to enabled
+            enable_orchestrator: true, // Default to enabled
+            can_compute: true,         // Default to enabled
         }
     }
 }

@@ -7,9 +7,9 @@ use tracing::{debug, info};
 
 use cortex_grid::NodeId;
 
+use crate::error::Result;
 use crate::rating::RatingRecord;
 use crate::trust::TrustGraph;
-use crate::error::Result;
 
 /// Messages for reputation gossip protocol
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,21 +18,13 @@ pub enum GossipMessage {
     NewRating(RatingRecord),
 
     /// Request ratings for a node+skill
-    RequestRatings {
-        node: NodeId,
-        skill: String,
-    },
+    RequestRatings { node: NodeId, skill: String },
 
     /// Response with ratings
-    RatingsResponse {
-        ratings: Vec<RatingRecord>,
-    },
+    RatingsResponse { ratings: Vec<RatingRecord> },
 
     /// Request top nodes for a skill
-    RequestTopNodes {
-        skill: String,
-        limit: usize,
-    },
+    RequestTopNodes { skill: String, limit: usize },
 
     /// Response with top nodes
     TopNodesResponse {
@@ -41,14 +33,10 @@ pub enum GossipMessage {
     },
 
     /// Sync request - send ratings newer than timestamp
-    SyncRequest {
-        since_timestamp: u64,
-    },
+    SyncRequest { since_timestamp: u64 },
 
     /// Sync response
-    SyncResponse {
-        ratings: Vec<RatingRecord>,
-    },
+    SyncResponse { ratings: Vec<RatingRecord> },
 }
 
 /// Gossip protocol for propagating reputation data
@@ -93,11 +81,13 @@ impl ReputationGossip {
     }
 
     /// Handle incoming gossip message
-    pub async fn handle_message(&self, from: NodeId, msg: GossipMessage) -> Result<Option<GossipMessage>> {
+    pub async fn handle_message(
+        &self,
+        from: NodeId,
+        msg: GossipMessage,
+    ) -> Result<Option<GossipMessage>> {
         match msg {
-            GossipMessage::NewRating(record) => {
-                self.handle_new_rating(from, record).await
-            }
+            GossipMessage::NewRating(record) => self.handle_new_rating(from, record).await,
             GossipMessage::RequestRatings { node, skill } => {
                 self.handle_request_ratings(node, skill).await
             }
@@ -111,13 +101,15 @@ impl ReputationGossip {
                 self.handle_ratings_response(ratings).await
             }
             GossipMessage::TopNodesResponse { .. } => Ok(None),
-            GossipMessage::SyncResponse { ratings } => {
-                self.handle_sync_response(ratings).await
-            }
+            GossipMessage::SyncResponse { ratings } => self.handle_sync_response(ratings).await,
         }
     }
 
-    async fn handle_new_rating(&self, _from: NodeId, record: RatingRecord) -> Result<Option<GossipMessage>> {
+    async fn handle_new_rating(
+        &self,
+        _from: NodeId,
+        record: RatingRecord,
+    ) -> Result<Option<GossipMessage>> {
         let hash = record.hash();
 
         // Check if already seen
@@ -141,7 +133,11 @@ impl ReputationGossip {
         Ok(None)
     }
 
-    async fn handle_request_ratings(&self, node: NodeId, skill: String) -> Result<Option<GossipMessage>> {
+    async fn handle_request_ratings(
+        &self,
+        node: NodeId,
+        skill: String,
+    ) -> Result<Option<GossipMessage>> {
         let graph = self.graph.read().await;
         let history = graph.history();
 
@@ -153,7 +149,11 @@ impl ReputationGossip {
         Ok(Some(GossipMessage::RatingsResponse { ratings }))
     }
 
-    async fn handle_request_top_nodes(&self, skill: String, limit: usize) -> Result<Option<GossipMessage>> {
+    async fn handle_request_top_nodes(
+        &self,
+        skill: String,
+        limit: usize,
+    ) -> Result<Option<GossipMessage>> {
         let graph = self.graph.read().await;
         let skill_id: crate::rating::SkillId = skill.clone().into();
         let top = graph.top_nodes_for_skill(&skill_id, limit);
@@ -178,7 +178,10 @@ impl ReputationGossip {
         Ok(Some(GossipMessage::SyncResponse { ratings }))
     }
 
-    async fn handle_ratings_response(&self, ratings: Vec<RatingRecord>) -> Result<Option<GossipMessage>> {
+    async fn handle_ratings_response(
+        &self,
+        ratings: Vec<RatingRecord>,
+    ) -> Result<Option<GossipMessage>> {
         let graph = self.graph.write().await;
         for record in ratings {
             let _ = graph.record_rating(record);
@@ -186,7 +189,10 @@ impl ReputationGossip {
         Ok(None)
     }
 
-    async fn handle_sync_response(&self, ratings: Vec<RatingRecord>) -> Result<Option<GossipMessage>> {
+    async fn handle_sync_response(
+        &self,
+        ratings: Vec<RatingRecord>,
+    ) -> Result<Option<GossipMessage>> {
         self.handle_ratings_response(ratings).await
     }
 

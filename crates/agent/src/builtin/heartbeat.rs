@@ -74,17 +74,26 @@ impl Agent for HeartbeatAgent {
 
     async fn init(&mut self, ctx: &mut AgentContext) -> Result<(), AgentError> {
         debug!(agent_id = %self.id, "HeartbeatAgent initialized");
-        
-        ctx.emit_event("agent.started", serde_json::to_vec(&serde_json::json!({
-            "agent_id": self.id.to_string(),
-            "agent_name": self.name,
-            "interval_secs": self.interval.as_secs(),
-        })).unwrap_or_default()).await?;
-        
+
+        ctx.emit_event(
+            "agent.started",
+            serde_json::to_vec(&serde_json::json!({
+                "agent_id": self.id.to_string(),
+                "agent_name": self.name,
+                "interval_secs": self.interval.as_secs(),
+            }))
+            .unwrap_or_default(),
+        )
+        .await?;
+
         Ok(())
     }
 
-    async fn on_event(&mut self, _event: &Event, _ctx: &mut AgentContext) -> Result<(), AgentError> {
+    async fn on_event(
+        &mut self,
+        _event: &Event,
+        _ctx: &mut AgentContext,
+    ) -> Result<(), AgentError> {
         Ok(())
     }
 
@@ -111,13 +120,18 @@ impl Agent for HeartbeatAgent {
 
     async fn shutdown(&mut self, ctx: &mut AgentContext) -> Result<(), AgentError> {
         debug!(agent_id = %self.id, total_ticks = self.tick_count, "HeartbeatAgent shutting down");
-        
-        ctx.emit_event("agent.stopped", serde_json::to_vec(&serde_json::json!({
-            "agent_id": self.id.to_string(),
-            "agent_name": self.name,
-            "total_ticks": self.tick_count,
-        })).unwrap_or_default()).await?;
-        
+
+        ctx.emit_event(
+            "agent.stopped",
+            serde_json::to_vec(&serde_json::json!({
+                "agent_id": self.id.to_string(),
+                "agent_name": self.name,
+                "total_ticks": self.tick_count,
+            }))
+            .unwrap_or_default(),
+        )
+        .await?;
+
         Ok(())
     }
 }

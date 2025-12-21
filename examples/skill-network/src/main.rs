@@ -4,11 +4,10 @@ use tracing::{info, Level};
 
 use async_trait::async_trait;
 use cortex_grid::NodeId;
-use cortex_reputation::{Rating, SkillId, TrustGraph, EigenTrust};
+use cortex_reputation::{EigenTrust, Rating, SkillId, TrustGraph};
 use cortex_skill::{
-    Skill, SkillCapability, SkillInput, SkillOutput, SkillMetadata,
-    LocalSkillRegistry, NetworkSkillRegistry, SkillRouter, SkillTask,
-    Result as SkillResult,
+    LocalSkillRegistry, NetworkSkillRegistry, Result as SkillResult, Skill, SkillCapability,
+    SkillInput, SkillMetadata, SkillOutput, SkillRouter, SkillTask,
 };
 
 /// A simple "math" skill for demonstration
@@ -38,7 +37,7 @@ impl Skill for MathSkill {
 
     async fn execute(&self, input: SkillInput) -> SkillResult<SkillOutput> {
         let expr = input.get_text().unwrap_or_default();
-        
+
         // Simulate computation (in real world, this would be actual math)
         let result = format!(
             "[{} specialist] Computed: {} = 42",
@@ -76,7 +75,7 @@ impl Skill for TranslationSkill {
 
     async fn execute(&self, input: SkillInput) -> SkillResult<SkillOutput> {
         let text = input.get_text().unwrap_or_default();
-        
+
         // Mock translation
         let result = format!("[Translated to {}]: {}", self.language, text);
 
@@ -136,19 +135,37 @@ async fn main() {
 
         // Alice rates others based on past interactions
         // Bob is excellent at translation
-        graph.rate(node_bob, "translate.spanish".into(), Rating::positive()).unwrap();
-        graph.rate(node_bob, "translate.spanish".into(), Rating::positive()).unwrap();
-        graph.rate(node_bob, "translate.spanish".into(), Rating::positive()).unwrap();
-        graph.rate(node_bob, "translate.french".into(), Rating::positive()).unwrap();
+        graph
+            .rate(node_bob, "translate.spanish".into(), Rating::positive())
+            .unwrap();
+        graph
+            .rate(node_bob, "translate.spanish".into(), Rating::positive())
+            .unwrap();
+        graph
+            .rate(node_bob, "translate.spanish".into(), Rating::positive())
+            .unwrap();
+        graph
+            .rate(node_bob, "translate.french".into(), Rating::positive())
+            .unwrap();
 
         // Dave is mediocre at translation
-        graph.rate(node_dave, "translate.spanish".into(), Rating::positive()).unwrap();
-        graph.rate(node_dave, "translate.spanish".into(), Rating::negative()).unwrap();
+        graph
+            .rate(node_dave, "translate.spanish".into(), Rating::positive())
+            .unwrap();
+        graph
+            .rate(node_dave, "translate.spanish".into(), Rating::negative())
+            .unwrap();
 
         // Carol is not great at math
-        graph.rate(node_carol, "math.compute".into(), Rating::negative()).unwrap();
-        graph.rate(node_carol, "math.compute".into(), Rating::positive()).unwrap();
-        graph.rate(node_carol, "math.compute".into(), Rating::negative()).unwrap();
+        graph
+            .rate(node_carol, "math.compute".into(), Rating::negative())
+            .unwrap();
+        graph
+            .rate(node_carol, "math.compute".into(), Rating::positive())
+            .unwrap();
+        graph
+            .rate(node_carol, "math.compute".into(), Rating::negative())
+            .unwrap();
     }
 
     // Show ratings
@@ -159,21 +176,27 @@ async fn main() {
         if let Some(rating) = graph.get_skill_rating(&node_bob, &"translate.spanish".into()) {
             info!(
                 "  Bob (translate.spanish): +{} / -{} = {:.2}",
-                rating.positive_count, rating.negative_count, rating.normalized_score()
+                rating.positive_count,
+                rating.negative_count,
+                rating.normalized_score()
             );
         }
 
         if let Some(rating) = graph.get_skill_rating(&node_dave, &"translate.spanish".into()) {
             info!(
                 "  Dave (translate.spanish): +{} / -{} = {:.2}",
-                rating.positive_count, rating.negative_count, rating.normalized_score()
+                rating.positive_count,
+                rating.negative_count,
+                rating.normalized_score()
             );
         }
 
         if let Some(rating) = graph.get_skill_rating(&node_carol, &"math.compute".into()) {
             info!(
                 "  Carol (math.compute): +{} / -{} = {:.2}",
-                rating.positive_count, rating.negative_count, rating.normalized_score()
+                rating.positive_count,
+                rating.negative_count,
+                rating.normalized_score()
             );
         }
     }

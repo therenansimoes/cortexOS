@@ -46,7 +46,10 @@ pub enum IntentionStatus {
 
 impl IntentionStatus {
     pub fn is_terminal(&self) -> bool {
-        matches!(self, IntentionStatus::Completed | IntentionStatus::Failed { .. })
+        matches!(
+            self,
+            IntentionStatus::Completed | IntentionStatus::Failed { .. }
+        )
     }
 }
 
@@ -100,12 +103,32 @@ impl IntentionManager {
         self.update_status(id, IntentionStatus::Completed).await
     }
 
-    pub async fn fail(&self, id: &IntentionId, reason: impl Into<String>) -> Result<(), IntentionError> {
-        self.update_status(id, IntentionStatus::Failed { reason: reason.into() }).await
+    pub async fn fail(
+        &self,
+        id: &IntentionId,
+        reason: impl Into<String>,
+    ) -> Result<(), IntentionError> {
+        self.update_status(
+            id,
+            IntentionStatus::Failed {
+                reason: reason.into(),
+            },
+        )
+        .await
     }
 
-    pub async fn block(&self, id: &IntentionId, waiting_for: impl Into<String>) -> Result<(), IntentionError> {
-        self.update_status(id, IntentionStatus::Blocked { waiting_for: waiting_for.into() }).await
+    pub async fn block(
+        &self,
+        id: &IntentionId,
+        waiting_for: impl Into<String>,
+    ) -> Result<(), IntentionError> {
+        self.update_status(
+            id,
+            IntentionStatus::Blocked {
+                waiting_for: waiting_for.into(),
+            },
+        )
+        .await
     }
 
     pub async fn add_subgoal(
@@ -122,8 +145,15 @@ impl IntentionManager {
         Ok(())
     }
 
-    pub async fn register_agent_capabilities(&self, agent_id: AgentId, capabilities: CapabilitySet) {
-        self.agent_capabilities.write().await.insert(agent_id, capabilities);
+    pub async fn register_agent_capabilities(
+        &self,
+        agent_id: AgentId,
+        capabilities: CapabilitySet,
+    ) {
+        self.agent_capabilities
+            .write()
+            .await
+            .insert(agent_id, capabilities);
     }
 
     pub async fn unregister_agent(&self, agent_id: &AgentId) {
@@ -169,7 +199,10 @@ impl IntentionManager {
             .collect()
     }
 
-    pub async fn match_and_assign(&self, intention_id: &IntentionId) -> Result<AgentId, IntentionError> {
+    pub async fn match_and_assign(
+        &self,
+        intention_id: &IntentionId,
+    ) -> Result<AgentId, IntentionError> {
         let intention = self
             .get_intention(intention_id)
             .await

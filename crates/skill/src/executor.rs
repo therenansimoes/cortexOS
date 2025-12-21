@@ -2,15 +2,15 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
-use tracing::{debug, info, error};
+use tracing::{debug, error, info};
 
 use cortex_grid::NodeId;
 use cortex_reputation::{Rating, SkillId, TrustGraph};
 
 use crate::definition::{Skill, SkillInput, SkillOutput};
+use crate::error::{Result, SkillError};
 use crate::registry::LocalSkillRegistry;
 use crate::task::{SkillTask, TaskResult};
-use crate::error::{SkillError, Result};
 
 /// Context for skill execution
 pub struct ExecutionContext {
@@ -142,7 +142,10 @@ pub struct RemoteExecutor {
 
 impl RemoteExecutor {
     pub fn new(my_id: NodeId, trust_graph: Arc<RwLock<TrustGraph>>) -> Self {
-        Self { _my_id: my_id, trust_graph }
+        Self {
+            _my_id: my_id,
+            trust_graph,
+        }
     }
 
     /// Rate a remote execution result

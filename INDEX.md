@@ -11,7 +11,13 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
    - Quick overview of all 40 PRs
    - Next steps
 
-2. **[PLAN_README.md](./PLAN_README.md)**
+2. **[QUICK_START_ISSUES.md](./QUICK_START_ISSUES.md)** 🚀 CREATE ISSUES NOW
+   - Fastest path to creating all tracking issues
+   - Step-by-step with exact commands
+   - 5-minute setup guide
+   - **Length**: ~200 lines
+
+3. **[PLAN_README.md](./PLAN_README.md)**
    - Quick reference guide
    - Phase overview table
    - Getting started instructions
@@ -94,8 +100,9 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
 
 ### "I want to understand the plan quickly"
 1. [SUMMARY.md](./SUMMARY.md) - 5 min read
-2. [ROADMAP.md](./ROADMAP.md) - Browse the ASCII art
-3. [PLAN_README.md](./PLAN_README.md) - Quick reference
+2. [QUICK_START_ISSUES.md](./QUICK_START_ISSUES.md) - Create issues NOW
+3. [ROADMAP.md](./ROADMAP.md) - Browse the ASCII art
+4. [PLAN_README.md](./PLAN_README.md) - Quick reference
 
 ### "I want to start working on a PR"
 1. [HOW_TO_CREATE_PRS.md](./HOW_TO_CREATE_PRS.md) - Follow the guide

@@ -88,7 +88,7 @@ pub async fn get_status(State(state): State<AppState>) -> Result<Json<StatusResp
 }
 
 pub async fn get_peers(State(state): State<AppState>) -> Result<Json<Vec<PeerResponse>>, StatusCode> {
-    let peers = state.peer_store.all().await;
+    let peers = state.peer_store.list_active().await;
     
     let response: Vec<PeerResponse> = peers
         .iter()
@@ -165,7 +165,7 @@ pub async fn delegate_task(
 }
 
 pub async fn get_stats(State(state): State<AppState>) -> Result<Json<StatsResponse>, StatusCode> {
-    let peers = state.peer_store.all().await;
+    let peers = state.peer_store.list_active().await;
     let compute_peers = state.peer_store
         .find_by_capability(|caps| caps.can_compute)
         .await

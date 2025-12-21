@@ -17,6 +17,7 @@ tracing = { workspace = true }
 async-trait = { workspace = true }
 dashmap = { workspace = true }
 uuid = { workspace = true }
+blake3 = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

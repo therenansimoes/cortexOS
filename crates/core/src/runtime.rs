@@ -77,6 +77,26 @@ impl EventBus {
         Ok(())
     }
 
+    /// Publish multiple events in a batch for improved performance.
+    /// This reduces lock contention by acquiring the subscriptions lock once.
+    pub fn publish_batch(&self, events: &[Event]) -> Result<usize> {
+        let mut published = 0;
+        let subscriptions = self.subscriptions.read();
+        
+        for event in events {
+            let _ = self.broadcast.send(event.clone());
+            
+            for sub in subscriptions.iter() {
+                if pattern_matches(&sub.pattern, event.kind()) {
+                    let _ = sub.sender.try_send(event.clone());
+                }
+            }
+            published += 1;
+        }
+        
+        Ok(published)
+    }
+
     pub fn subscribe(&self, pattern: &str) -> mpsc::Receiver<Event> {
         let (tx, rx) = mpsc::channel(256);
         self.subscriptions.write().push(Subscription {
@@ -200,6 +220,11 @@ impl Runtime {
         self.event_bus.publish(event)
     }
 
+    /// Publish multiple events in a batch for improved performance
+    pub fn publish_batch(&self, events: &[Event]) -> Result<usize> {
+        self.event_bus.publish_batch(events)
+    }
+
     pub fn subscribe(&self, pattern: &str) -> mpsc::Receiver<Event> {
         self.event_bus.subscribe(pattern)
     }
@@ -282,11 +307,280 @@ mod tests {
         assert_eq!(received.kind(), "test.event");
     }
 
+    #[tokio::test]
+    async fn test_batch_publishing() {
+        let bus = EventBus::new(1024);
+        let mut rx = bus.subscribe("batch.*");
+
+        // Create batch of events
+        let events: Vec<Event> = (0..10)
+            .map(|i| {
+                Event::new(
+                    "batch-source",
+                    "batch.event",
+                    Payload::inline(format!("event-{}", i).into_bytes()),
+                )
+            })
+            .collect();
+
+        let published = bus.publish_batch(&events).unwrap();
+        assert_eq!(published, 10);
+
+        // Verify all events were received
+        for _ in 0..10 {
+            let received = rx.recv().await.unwrap();
+            assert_eq!(received.kind(), "batch.event");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_multiple_subscribers() {
+        let bus = EventBus::new(1024);
+        let mut rx1 = bus.subscribe("multi.*");
+        let mut rx2 = bus.subscribe("multi.*");
+        let mut rx3 = bus.subscribe("*");
+
+        let event = Event::new("source", "multi.test", Payload::inline(b"data".to_vec()));
+        bus.publish(event).unwrap();
+
+        // All subscribers should receive the event
+        let r1 = rx1.recv().await.unwrap();
+        let r2 = rx2.recv().await.unwrap();
+        let r3 = rx3.recv().await.unwrap();
+
+        assert_eq!(r1.kind(), "multi.test");
+        assert_eq!(r2.kind(), "multi.test");
+        assert_eq!(r3.kind(), "multi.test");
+    }
+
+    #[tokio::test]
+    async fn test_pattern_filtering() {
+        let bus = EventBus::new(1024);
+        let mut sensor_rx = bus.subscribe("sensor.*");
+        let mut grid_rx = bus.subscribe("grid.*");
+
+        // Publish different event types
+        bus.publish(Event::new("s1", "sensor.data", Payload::inline(b"s".to_vec())))
+            .unwrap();
+        bus.publish(Event::new("g1", "grid.msg", Payload::inline(b"g".to_vec())))
+            .unwrap();
+        bus.publish(Event::new("a1", "agent.action", Payload::inline(b"a".to_vec())))
+            .unwrap();
+
+        // Check sensor subscriber only gets sensor events
+        let sensor_event = sensor_rx.recv().await.unwrap();
+        assert_eq!(sensor_event.kind(), "sensor.data");
+
+        // Check grid subscriber only gets grid events
+        let grid_event = grid_rx.recv().await.unwrap();
+        assert_eq!(grid_event.kind(), "grid.msg");
+
+        // Verify no more events in queues
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        assert!(sensor_rx.try_recv().is_err());
+        assert!(grid_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_high_throughput() {
+        let bus = EventBus::new(10000);
+        
+        // Use a smaller batch that fits in the channel buffer
+        let batch_size = 100;
+        
+        let mut rx = bus.subscribe("*");
+
+        // Publish events
+        let events: Vec<Event> = (0..batch_size)
+            .map(|i| {
+                Event::new(
+                    "throughput-test",
+                    "throughput.event",
+                    Payload::inline(format!("event-{}", i).into_bytes()),
+                )
+            })
+            .collect();
+
+        let published = bus.publish_batch(&events).unwrap();
+        assert_eq!(published, batch_size);
+
+        // Verify we can receive events
+        let mut received = 0;
+        for _ in 0..batch_size {
+            if rx.recv().await.is_some() {
+                received += 1;
+            }
+        }
+        assert_eq!(received, batch_size);
+    }
+
     #[test]
     fn test_pattern_matching() {
         assert!(pattern_matches("*", "anything"));
         assert!(pattern_matches("test.*", "test.event"));
         assert!(pattern_matches("test.event", "test.event"));
         assert!(!pattern_matches("test.*", "other.event"));
+    }
+
+    #[tokio::test]
+    async fn test_agent_lifecycle() {
+        struct LifecycleAgent {
+            name: String,
+            caps: CapabilitySet,
+            started: Arc<RwLock<bool>>,
+            stopped: Arc<RwLock<bool>>,
+        }
+
+        #[async_trait]
+        impl Agent for LifecycleAgent {
+            fn name(&self) -> &str {
+                &self.name
+            }
+
+            fn capabilities(&self) -> &CapabilitySet {
+                &self.caps
+            }
+
+            async fn handle(&self, _event: Event) -> Result<()> {
+                Ok(())
+            }
+
+            async fn start(&self) -> Result<()> {
+                *self.started.write() = true;
+                Ok(())
+            }
+
+            async fn stop(&self) -> Result<()> {
+                *self.stopped.write() = true;
+                Ok(())
+            }
+        }
+
+        let started = Arc::new(RwLock::new(false));
+        let stopped = Arc::new(RwLock::new(false));
+        
+        let agent = LifecycleAgent {
+            name: "lifecycle-test".to_string(),
+            caps: CapabilitySet::new(),
+            started: Arc::clone(&started),
+            stopped: Arc::clone(&stopped),
+        };
+
+        let runtime = Runtime::new();
+        runtime.spawn_agent(agent).await.unwrap();
+
+        // Give start() time to execute
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        assert!(*started.read());
+
+        runtime.shutdown().await.unwrap();
+        
+        // Give stop() time to execute
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        assert!(*stopped.read());
+    }
+
+    #[tokio::test]
+    async fn test_send_to_agent() {
+        let runtime = Runtime::new();
+        let agent = TestAgent {
+            name: "target-agent".to_string(),
+            caps: CapabilitySet::new(),
+        };
+
+        runtime.spawn_agent(agent).await.unwrap();
+
+        let event = Event::new("test", "test.event", Payload::inline(b"data".to_vec()));
+        runtime.send_to_agent("target-agent", event).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_send_to_nonexistent_agent() {
+        let runtime = Runtime::new();
+        let event = Event::new("test", "test.event", Payload::inline(b"data".to_vec()));
+        let result = runtime.send_to_agent("nonexistent", event).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_agent_registration() {
+        let runtime = Runtime::new();
+        let agent1 = TestAgent {
+            name: "duplicate".to_string(),
+            caps: CapabilitySet::new(),
+        };
+        let agent2 = TestAgent {
+            name: "duplicate".to_string(),
+            caps: CapabilitySet::new(),
+        };
+
+        runtime.spawn_agent(agent1).await.unwrap();
+        let result = runtime.spawn_agent(agent2).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_runtime_publish() {
+        let runtime = Runtime::new();
+        let mut rx = runtime.subscribe("test.*");
+
+        let event = Event::new("runtime", "test.publish", Payload::inline(b"data".to_vec()));
+        runtime.publish(event).unwrap();
+
+        let received = rx.recv().await.unwrap();
+        assert_eq!(received.kind(), "test.publish");
+    }
+
+    #[tokio::test]
+    async fn test_runtime_publish_batch() {
+        let runtime = Runtime::new();
+        let mut rx = runtime.subscribe("batch.*");
+
+        let events: Vec<Event> = (0..5)
+            .map(|i| {
+                Event::new(
+                    "runtime",
+                    "batch.event",
+                    Payload::inline(format!("batch-{}", i).into_bytes()),
+                )
+            })
+            .collect();
+
+        let count = runtime.publish_batch(&events).unwrap();
+        assert_eq!(count, 5);
+
+        for _ in 0..5 {
+            assert!(rx.recv().await.is_some());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_subscribe_all() {
+        let bus = EventBus::new(1024);
+        let mut rx = bus.subscribe_all();
+
+        bus.publish(Event::new("s1", "type1", Payload::inline(vec![]))).unwrap();
+        bus.publish(Event::new("s2", "type2", Payload::inline(vec![]))).unwrap();
+
+        let e1 = rx.recv().await.unwrap();
+        let e2 = rx.recv().await.unwrap();
+        
+        assert_eq!(e1.kind(), "type1");
+        assert_eq!(e2.kind(), "type2");
+    }
+
+    #[tokio::test]
+    async fn test_eventbus_default() {
+        let bus = EventBus::default();
+        let mut rx = bus.subscribe("*");
+        
+        bus.publish(Event::new("test", "event", Payload::inline(vec![]))).unwrap();
+        assert!(rx.recv().await.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_runtime_default() {
+        let runtime = Runtime::default();
+        assert!(runtime.get_agent("nonexistent").is_none());
     }
 }

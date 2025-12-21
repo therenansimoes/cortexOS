@@ -1,6 +1,11 @@
 CortexOS Blueprint v1.0
 
+[![CI](https://github.com/therenansimoes/cortexOS/actions/workflows/ci.yml/badge.svg)](https://github.com/therenansimoes/cortexOS/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+
 > **📋 Development Plan Available**: See [SUMMARY.md](./SUMMARY.md) for the complete breakdown of 40 PRs across 7 development phases. Also check [ROADMAP.md](./ROADMAP.md) for a visual overview and [HOW_TO_CREATE_PRS.md](./HOW_TO_CREATE_PRS.md) for step-by-step instructions.
+> 
+> **🔨 Contributing**: See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup, CI/CD information, and contribution guidelines.
 
 ## Priority: Run Anywhere, Spread Widely
 

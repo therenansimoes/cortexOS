@@ -5,8 +5,62 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::future::BoxFuture;
 use parking_lot::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc};
+
+/// Runtime metrics for monitoring event processing
+#[derive(Debug, Default)]
+pub struct RuntimeMetrics {
+    /// Total number of events published
+    pub events_published: AtomicU64,
+    /// Total number of events dropped due to backpressure
+    pub events_dropped: AtomicU64,
+    /// Total number of events delivered to subscribers
+    pub events_delivered: AtomicU64,
+    /// Number of active subscriptions
+    pub active_subscriptions: AtomicU64,
+    /// Number of active agents
+    pub active_agents: AtomicU64,
+}
+
+impl RuntimeMetrics {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn record_publish(&self) {
+        self.events_published.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_drop(&self) {
+        self.events_dropped.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_delivery(&self) {
+        self.events_delivered.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn snapshot(&self) -> MetricsSnapshot {
+        MetricsSnapshot {
+            events_published: self.events_published.load(Ordering::Relaxed),
+            events_dropped: self.events_dropped.load(Ordering::Relaxed),
+            events_delivered: self.events_delivered.load(Ordering::Relaxed),
+            active_subscriptions: self.active_subscriptions.load(Ordering::Relaxed),
+            active_agents: self.active_agents.load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// Snapshot of metrics at a point in time
+#[derive(Debug, Clone, Copy)]
+pub struct MetricsSnapshot {
+    pub events_published: u64,
+    pub events_dropped: u64,
+    pub events_delivered: u64,
+    pub active_subscriptions: u64,
+    pub active_agents: u64,
+}
 
 pub type EventHandler = Box<dyn Fn(Event) -> BoxFuture<'static, ()> + Send + Sync>;
 
@@ -54,6 +108,7 @@ struct Subscription {
 pub struct EventBus {
     broadcast: broadcast::Sender<Event>,
     subscriptions: RwLock<Vec<Subscription>>,
+    metrics: Arc<RuntimeMetrics>,
 }
 
 impl EventBus {
@@ -62,16 +117,22 @@ impl EventBus {
         Self {
             broadcast,
             subscriptions: RwLock::new(Vec::new()),
+            metrics: Arc::new(RuntimeMetrics::new()),
         }
     }
 
     pub fn publish(&self, event: Event) -> Result<()> {
+        self.metrics.record_publish();
+        
         let _ = self.broadcast.send(event.clone());
 
         let subscriptions = self.subscriptions.read();
         for sub in subscriptions.iter() {
             if pattern_matches(&sub.pattern, event.kind()) {
-                let _ = sub.sender.try_send(event.clone());
+                match sub.sender.try_send(event.clone()) {
+                    Ok(_) => self.metrics.record_delivery(),
+                    Err(_) => self.metrics.record_drop(),
+                }
             }
         }
         Ok(())
@@ -84,11 +145,15 @@ impl EventBus {
         let subscriptions = self.subscriptions.read();
         
         for event in events {
+            self.metrics.record_publish();
             let _ = self.broadcast.send(event.clone());
             
             for sub in subscriptions.iter() {
                 if pattern_matches(&sub.pattern, event.kind()) {
-                    let _ = sub.sender.try_send(event.clone());
+                    match sub.sender.try_send(event.clone()) {
+                        Ok(_) => self.metrics.record_delivery(),
+                        Err(_) => self.metrics.record_drop(),
+                    }
                 }
             }
             published += 1;
@@ -103,11 +168,16 @@ impl EventBus {
             pattern: pattern.to_string(),
             sender: tx,
         });
+        self.metrics.active_subscriptions.fetch_add(1, Ordering::Relaxed);
         rx
     }
 
     pub fn subscribe_all(&self) -> broadcast::Receiver<Event> {
         self.broadcast.subscribe()
+    }
+
+    pub fn metrics(&self) -> Arc<RuntimeMetrics> {
+        Arc::clone(&self.metrics)
     }
 }
 
@@ -172,13 +242,19 @@ impl Runtime {
         };
 
         self.agents.insert(name.clone(), handle);
+        
+        // Update metrics
+        self.event_bus.metrics().active_agents.fetch_add(1, Ordering::Relaxed);
 
         let agent = Arc::new(agent);
         let agent_clone = Arc::clone(&agent);
+        let metrics = self.event_bus.metrics();
+        let _name_clone = name.clone();
 
         tokio::spawn(async move {
             if let Err(e) = agent_clone.start().await {
                 tracing::error!(agent = %name, error = %e, "Agent failed to start");
+                metrics.active_agents.fetch_sub(1, Ordering::Relaxed);
                 return;
             }
 
@@ -199,6 +275,8 @@ impl Runtime {
             if let Err(e) = agent_clone.stop().await {
                 tracing::error!(agent = %name, error = %e, "Agent failed to stop gracefully");
             }
+            
+            metrics.active_agents.fetch_sub(1, Ordering::Relaxed);
         });
 
         Ok(())
@@ -237,6 +315,11 @@ impl Runtime {
             .send(())
             .await
             .map_err(|_| CoreError::RuntimeShutdown)
+    }
+
+    /// Get current runtime metrics snapshot
+    pub fn metrics(&self) -> MetricsSnapshot {
+        self.event_bus.metrics().snapshot()
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -582,5 +665,82 @@ mod tests {
     async fn test_runtime_default() {
         let runtime = Runtime::default();
         assert!(runtime.get_agent("nonexistent").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_runtime_metrics() {
+        let runtime = Runtime::new();
+        let mut rx = runtime.subscribe("metrics.*");
+
+        // Publish some events
+        for i in 0..10 {
+            let event = Event::new(
+                "test",
+                "metrics.event",
+                Payload::inline(format!("event-{}", i).into_bytes()),
+            );
+            runtime.publish(event).unwrap();
+        }
+
+        // Receive some events
+        for _ in 0..10 {
+            let _ = rx.recv().await;
+        }
+
+        // Check metrics
+        let metrics = runtime.metrics();
+        assert_eq!(metrics.events_published, 10);
+        assert!(metrics.events_delivered >= 10);
+        assert_eq!(metrics.active_subscriptions, 1);
+    }
+
+    #[tokio::test]
+    async fn test_metrics_agent_tracking() {
+        let runtime = Runtime::new();
+        
+        let initial_metrics = runtime.metrics();
+        assert_eq!(initial_metrics.active_agents, 0);
+
+        let agent = TestAgent {
+            name: "metrics-agent".to_string(),
+            caps: CapabilitySet::new(),
+        };
+
+        runtime.spawn_agent(agent).await.unwrap();
+        
+        // Give agent time to start
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        
+        let metrics = runtime.metrics();
+        assert_eq!(metrics.active_agents, 1);
+
+        runtime.shutdown().await.unwrap();
+        
+        // Give agent time to stop
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        
+        let final_metrics = runtime.metrics();
+        assert_eq!(final_metrics.active_agents, 0);
+    }
+
+    #[tokio::test]
+    async fn test_metrics_drop_tracking() {
+        let bus = EventBus::new(1024);
+        let rx = bus.subscribe("test.*");
+        
+        // Fill the subscription channel
+        for i in 0..300 {
+            bus.publish(Event::new("test", "test.event", Payload::inline(vec![i as u8]))).unwrap();
+        }
+        
+        drop(rx); // Drop receiver to cause more drops
+        
+        for i in 0..10 {
+            bus.publish(Event::new("test", "test.event", Payload::inline(vec![i as u8]))).unwrap();
+        }
+        
+        let metrics = bus.metrics().snapshot();
+        assert!(metrics.events_published > 0);
+        assert!(metrics.events_dropped > 0);
     }
 }

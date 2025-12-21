@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let serialized = chunk_store.serialize_chunk(hash)?;
         node1_sync.handle_chunk_put(*hash, serialized).await?;
     }
-    println!("Node 1: {} chunks stored\n", node1_sync.cache_size_bytes() / 1024);
+    println!("Node 1: {} KB stored\n", node1_sync.cache_size_bytes().await / 1024);
 
     // Node 2 has some chunks (simulate partial sync state)
     println!("Node 2: Simulating partial state (first 2 chunks)...");
@@ -114,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!();
     println!("Sync complete!");
-    println!("Node 2 cache size: {} KB", node2_sync.cache_size_bytes() / 1024);
+    println!("Node 2 cache size: {} KB", node2_sync.cache_size_bytes().await / 1024);
 
     // Verify node 2 now has all chunks
     let final_count = missing_hashes.len() + node2_hashes.len();
@@ -134,14 +134,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Start a sync operation
-    sync_manager.start_sync(node1_id, 10);
+    sync_manager.start_sync(node1_id, 10).await;
 
     // Simulate progress updates
     for _i in 0..5 {
         tokio::time::sleep(Duration::from_millis(100)).await;
-        sync_manager.update_sync_progress(&node1_id, 2, 0, 2048);
+        sync_manager.update_sync_progress(&node1_id, 2, 0, 2048).await;
 
-        if let Some(progress) = sync_manager.get_sync_progress(&node1_id) {
+        if let Some(progress) = sync_manager.get_sync_progress(&node1_id).await {
             println!(
                 "Progress: {:.1}% ({}/{} chunks, {} bytes, {:?} elapsed)",
                 progress.progress_percent(),
@@ -154,7 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Complete sync
-    if let Some(final_progress) = sync_manager.complete_sync(&node1_id) {
+    if let Some(final_progress) = sync_manager.complete_sync(&node1_id).await {
         println!("\nSync completed!");
         println!("  Total chunks: {}", final_progress.total_chunks);
         println!("  Synced: {}", final_progress.synced_chunks);

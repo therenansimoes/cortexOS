@@ -15,6 +15,6 @@ pub use peer::{Capabilities, NodeId, PeerInfo, PeerStore};
 pub use relay::{BeaconStore, RelayBeacon, RelayEncryption, RelayNode, RotatingIdentity};
 pub use wire::{Message, SessionParams, TaskStatus, PROTOCOL_VERSION};
 pub use chunk_sync::{
-    ChunkHash, DeltaSyncProtocol, EventChunkSyncManager, SyncProgress, SyncRequest, SyncResponse,
+    ChunkHash, DeltaSyncProtocol, EventChunkSyncManager, SyncProgress,
     ThrottleConfig,
 };

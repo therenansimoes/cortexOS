@@ -44,12 +44,21 @@ impl EventChunkStore {
 
     /// Compute hash for a chunk of events
     fn compute_chunk_hash(&self, events: &[Event]) -> Result<ChunkHash, StoreError> {
-        // Use JSON serialization for consistency
+        // Use canonical JSON serialization for deterministic hashing
+        // serde_json preserves insertion order, but we need canonical form
         let bytes = serde_json::to_vec(events)
             .map_err(|e| StoreError::Serialization(e.to_string()))?;
         
+        // Parse and re-serialize to ensure canonical form
+        let value: serde_json::Value = serde_json::from_slice(&bytes)
+            .map_err(|e| StoreError::Serialization(e.to_string()))?;
+        
+        // Serialize with sorted keys for determinism
+        let canonical_bytes = serde_json::to_vec(&value)
+            .map_err(|e| StoreError::Serialization(e.to_string()))?;
+        
         let mut hasher = Hasher::new();
-        hasher.update(&bytes);
+        hasher.update(&canonical_bytes);
         Ok(hasher.finalize().into())
     }
 

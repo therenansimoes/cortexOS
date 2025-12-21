@@ -111,18 +111,19 @@ The system uses the existing Grid wire protocol messages:
 
 ### Sync Flow
 
-1. **Discovery**: Nodes exchange manifest of available chunk hashes
+1. **Hash Exchange**: Caller obtains local and remote chunk hashes through application-specific means
 2. **Delta Computation**: Calculate missing chunks (set difference)
 3. **Request**: Request missing chunks via EventChunkGet
 4. **Transfer**: Receive chunks via EventChunkPut
 5. **Verification**: Verify hash matches received data
 6. **Storage**: Store verified chunks locally
 
+**Note**: The current implementation does not include automatic manifest exchange. Applications must obtain and exchange chunk hash lists through their own mechanisms before calling `compute_delta`.
+
 ```
 Node A                          Node B
   |                               |
-  |-- Get Manifest -------------->|
-  |<-- Manifest (hashes) ---------|
+  | (App exchanges hashes)        |
   |                               |
   | Compute Delta (missing)       |
   |                               |
@@ -195,10 +196,20 @@ All chunks are verified using BLAKE3:
 
 ### Privacy Filtering
 
-Chunks respect event privacy levels:
-- Only public/shareable events are chunked for sync
-- Privacy filters applied during chunk creation
-- See `crates/storage/src/privacy.rs`
+Privacy is enforced by the caller, not implicitly by the chunking APIs:
+- The chunking layer does **not** inspect or enforce `PrivacyLevel`
+- Only events you pass into `create_chunks` will be included in sync
+- Callers should pre-filter to include only public/shareable events before chunking
+- See `crates/storage/src/privacy.rs` for helpers to implement these filters
+
+Example:
+```rust
+use cortex_storage::{EventChunkStore, PrivacyFilter};
+
+let filter = PrivacyFilter::shareable();
+let shareable_events = filter.filter_events(all_events);
+let chunks = store.create_chunks(&shareable_events)?;
+```
 
 ## Performance Considerations
 
@@ -215,16 +226,21 @@ Choose chunk size based on your use case:
 ### Caching
 
 The sync manager uses an in-memory cache:
+- Currently **unbounded** (no built-in memory limit enforcement)
 - Reduces redundant network requests
-- Configurable memory limits
-- Manual cache clearing with `clear_cache()`
+- Requires manual cache management via `clear_cache()`
 
 ### Memory Usage
 
-Monitor cache size:
+Because there is no automatic memory limit, you should actively monitor and manage cache size:
 ```rust
-let size = sync_manager.cache_size_bytes();
+let size = sync_manager.cache_size_bytes().await;
 println!("Cache: {} KB", size / 1024);
+
+if size > MAX_ALLOWED_CACHE_BYTES {
+    // Application-specific policy: clear or prune cache
+    sync_manager.clear_cache().await;
+}
 ```
 
 ## Example Usage

@@ -1,27 +1,20 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use parking_lot::RwLock;
+use std::time::Duration;
+use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use crate::error::{GridError, Result};
 use crate::peer::NodeId;
 
+// WASM-compatible time handling
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+
 /// Hash of an event chunk (32 bytes)
 pub type ChunkHash = [u8; 32];
-
-/// Request for syncing event chunks between peers
-#[derive(Debug, Clone)]
-pub struct SyncRequest {
-    pub peer_id: NodeId,
-    pub known_hashes: Vec<ChunkHash>,
-}
-
-/// Response with missing chunk hashes
-#[derive(Debug, Clone)]
-pub struct SyncResponse {
-    pub missing_hashes: Vec<ChunkHash>,
-}
 
 /// Progress tracking for chunk sync operations
 #[derive(Debug, Clone)]
@@ -110,17 +103,19 @@ impl BandwidthTracker {
             self.reset_window();
         }
 
-        self.bytes_sent += bytes;
-
-        if self.bytes_sent > self.config.max_bytes_per_sec {
+        // Check if adding these bytes would exceed the limit
+        if self.bytes_sent + bytes > self.config.max_bytes_per_sec {
             let wait_time = self.config.window_duration - self.window_start.elapsed();
             debug!(
-                "Throttling: waiting {:?} (sent {} bytes)",
-                wait_time, self.bytes_sent
+                "Throttling: waiting {:?} (sent {} bytes, would send {} more)",
+                wait_time, self.bytes_sent, bytes
             );
             tokio::time::sleep(wait_time).await;
             self.reset_window();
         }
+
+        // Add bytes after checking/waiting
+        self.bytes_sent += bytes;
 
         Ok(())
     }
@@ -128,8 +123,8 @@ impl BandwidthTracker {
 
 /// Manages event chunk synchronization between peers
 pub struct EventChunkSyncManager {
+    #[allow(dead_code)] // Reserved for future node identity / networking features
     local_node_id: NodeId,
-    throttle_config: ThrottleConfig,
     bandwidth_tracker: Arc<RwLock<BandwidthTracker>>,
     active_syncs: Arc<RwLock<HashMap<NodeId, SyncProgress>>>,
     chunk_cache: Arc<RwLock<HashMap<ChunkHash, Vec<u8>>>>,
@@ -137,10 +132,9 @@ pub struct EventChunkSyncManager {
 
 impl EventChunkSyncManager {
     pub fn new(local_node_id: NodeId, throttle_config: ThrottleConfig) -> Self {
-        let bandwidth_tracker = BandwidthTracker::new(throttle_config.clone());
+        let bandwidth_tracker = BandwidthTracker::new(throttle_config);
         Self {
             local_node_id,
-            throttle_config,
             bandwidth_tracker: Arc::new(RwLock::new(bandwidth_tracker)),
             active_syncs: Arc::new(RwLock::new(HashMap::new())),
             chunk_cache: Arc::new(RwLock::new(HashMap::new())),
@@ -169,7 +163,7 @@ impl EventChunkSyncManager {
         debug!("Handling chunk get request for hash: {:02x?}...", &hash[..4]);
 
         // Check cache first
-        let chunk = self.chunk_cache.read().get(&hash).cloned();
+        let chunk = self.chunk_cache.read().await.get(&hash).cloned();
         
         if chunk.is_some() {
             debug!("Chunk found in cache");
@@ -194,14 +188,12 @@ impl EventChunkSyncManager {
             return Err(GridError::ProtocolError("Chunk hash mismatch".into()));
         }
 
-        // Apply bandwidth throttling
-        {
-            let mut tracker = self.bandwidth_tracker.write();
-            tracker.throttle(data.len() as u64).await?;
-        }
+        // Apply bandwidth throttling (without holding lock across await)
+        let bytes_to_throttle = data.len() as u64;
+        self.bandwidth_tracker.write().await.throttle(bytes_to_throttle).await?;
 
         // Store in cache
-        self.chunk_cache.write().insert(hash, data);
+        self.chunk_cache.write().await.insert(hash, data);
 
         info!("Chunk stored successfully");
         Ok(())
@@ -217,23 +209,23 @@ impl EventChunkSyncManager {
     }
 
     /// Get chunk from local cache
-    pub fn get_chunk(&self, hash: &ChunkHash) -> Option<Vec<u8>> {
-        self.chunk_cache.read().get(hash).cloned()
+    pub async fn get_chunk(&self, hash: &ChunkHash) -> Option<Vec<u8>> {
+        self.chunk_cache.read().await.get(hash).cloned()
     }
 
     /// Store chunk in local cache
-    pub fn store_chunk(&self, hash: ChunkHash, data: Vec<u8>) -> Result<()> {
+    pub async fn store_chunk(&self, hash: ChunkHash, data: Vec<u8>) -> Result<()> {
         if !self.verify_chunk_hash(&hash, &data) {
             return Err(GridError::ProtocolError("Invalid chunk hash".into()));
         }
-        self.chunk_cache.write().insert(hash, data);
+        self.chunk_cache.write().await.insert(hash, data);
         Ok(())
     }
 
     /// Start a sync operation with a peer
-    pub fn start_sync(&self, peer_id: NodeId, total_chunks: usize) {
+    pub async fn start_sync(&self, peer_id: NodeId, total_chunks: usize) {
         let progress = SyncProgress::new(total_chunks);
-        self.active_syncs.write().insert(peer_id, progress);
+        self.active_syncs.write().await.insert(peer_id, progress);
         info!(
             "Started sync with peer {:?} ({} chunks)",
             peer_id, total_chunks
@@ -241,14 +233,14 @@ impl EventChunkSyncManager {
     }
 
     /// Update sync progress
-    pub fn update_sync_progress(
+    pub async fn update_sync_progress(
         &self,
         peer_id: &NodeId,
         synced: usize,
         failed: usize,
         bytes: u64,
     ) {
-        if let Some(progress) = self.active_syncs.write().get_mut(peer_id) {
+        if let Some(progress) = self.active_syncs.write().await.get_mut(peer_id) {
             progress.synced_chunks += synced;
             progress.failed_chunks += failed;
             progress.bytes_transferred += bytes;
@@ -264,13 +256,13 @@ impl EventChunkSyncManager {
     }
 
     /// Get sync progress for a peer
-    pub fn get_sync_progress(&self, peer_id: &NodeId) -> Option<SyncProgress> {
-        self.active_syncs.read().get(peer_id).cloned()
+    pub async fn get_sync_progress(&self, peer_id: &NodeId) -> Option<SyncProgress> {
+        self.active_syncs.read().await.get(peer_id).cloned()
     }
 
     /// Complete sync with a peer
-    pub fn complete_sync(&self, peer_id: &NodeId) -> Option<SyncProgress> {
-        let progress = self.active_syncs.write().remove(peer_id);
+    pub async fn complete_sync(&self, peer_id: &NodeId) -> Option<SyncProgress> {
+        let progress = self.active_syncs.write().await.remove(peer_id);
         if let Some(ref p) = progress {
             info!(
                 "Completed sync with {:?}: {} chunks in {:?}",
@@ -283,19 +275,19 @@ impl EventChunkSyncManager {
     }
 
     /// Get all active syncs
-    pub fn active_sync_count(&self) -> usize {
-        self.active_syncs.read().len()
+    pub async fn active_sync_count(&self) -> usize {
+        self.active_syncs.read().await.len()
     }
 
     /// Clear cache (for testing or memory management)
-    pub fn clear_cache(&self) {
-        self.chunk_cache.write().clear();
+    pub async fn clear_cache(&self) {
+        self.chunk_cache.write().await.clear();
     }
 
     /// Get cache size in bytes
-    pub fn cache_size_bytes(&self) -> usize {
+    pub async fn cache_size_bytes(&self) -> usize {
         self.chunk_cache
-            .read()
+            .read().await
             .values()
             .map(|v: &Vec<u8>| v.len())
             .sum()
@@ -370,8 +362,8 @@ impl DeltaSyncProtocol {
         }
 
         self.sync_manager
-            .update_sync_progress(&peer_id, synced, failed, total_bytes);
-        self.sync_manager.complete_sync(&peer_id);
+            .update_sync_progress(&peer_id, synced, failed, total_bytes).await;
+        self.sync_manager.complete_sync(&peer_id).await;
 
         info!("Delta sync complete: {} chunks synced", chunks.len());
         Ok(chunks)
@@ -387,8 +379,8 @@ mod tests {
         let node_id = NodeId::random();
         let config = ThrottleConfig::default();
         let manager = EventChunkSyncManager::new(node_id, config);
-        assert_eq!(manager.active_sync_count(), 0);
-        assert_eq!(manager.cache_size_bytes(), 0);
+        assert_eq!(manager.active_sync_count().await, 0);
+        assert_eq!(manager.cache_size_bytes().await, 0);
     }
 
     #[tokio::test]
@@ -406,10 +398,10 @@ mod tests {
         };
 
         // Store chunk
-        manager.store_chunk(hash, data.clone()).unwrap();
+        manager.store_chunk(hash, data.clone()).await.unwrap();
 
         // Retrieve chunk
-        let retrieved = manager.get_chunk(&hash);
+        let retrieved = manager.get_chunk(&hash).await;
         assert_eq!(retrieved, Some(data));
     }
 
@@ -423,7 +415,7 @@ mod tests {
         let wrong_hash = [0u8; 32];
 
         // Should fail with wrong hash
-        let result = manager.store_chunk(wrong_hash, data);
+        let result = manager.store_chunk(wrong_hash, data).await;
         assert!(result.is_err());
     }
 
@@ -435,22 +427,22 @@ mod tests {
         let manager = EventChunkSyncManager::new(node_id, config);
 
         // Start sync
-        manager.start_sync(peer_id, 10);
-        assert_eq!(manager.active_sync_count(), 1);
+        manager.start_sync(peer_id, 10).await;
+        assert_eq!(manager.active_sync_count().await, 1);
 
         // Update progress
-        manager.update_sync_progress(&peer_id, 5, 0, 1024);
-        let progress = manager.get_sync_progress(&peer_id).unwrap();
+        manager.update_sync_progress(&peer_id, 5, 0, 1024).await;
+        let progress = manager.get_sync_progress(&peer_id).await.unwrap();
         assert_eq!(progress.synced_chunks, 5);
         assert_eq!(progress.bytes_transferred, 1024);
         assert!(!progress.is_complete());
 
         // Complete sync
-        manager.update_sync_progress(&peer_id, 5, 0, 1024);
-        let final_progress = manager.complete_sync(&peer_id).unwrap();
+        manager.update_sync_progress(&peer_id, 5, 0, 1024).await;
+        let final_progress = manager.complete_sync(&peer_id).await.unwrap();
         assert_eq!(final_progress.synced_chunks, 10);
         assert!(final_progress.is_complete());
-        assert_eq!(manager.active_sync_count(), 0);
+        assert_eq!(manager.active_sync_count().await, 0);
     }
 
     #[tokio::test]

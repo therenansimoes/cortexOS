@@ -21,3 +21,6 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
 parking_lot = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-time = "1.0"

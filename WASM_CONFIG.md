@@ -1,6 +1,6 @@
 # CortexOS WASM Build Configuration
 
-# This file documents WASM-specific build configurations and optimizations
+This file documents WASM-specific build configurations and optimizations
 
 ## Cargo Configuration
 

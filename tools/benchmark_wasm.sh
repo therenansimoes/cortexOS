@@ -13,6 +13,7 @@ echo ""
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Ensure wasm32-wasip1 target is installed
@@ -115,8 +116,10 @@ else
 fi
 
 # Size reduction percentage
-REDUCTION=$(echo "scale=2; (1 - $RELEASE_SIZE_BYTES / $DEBUG_SIZE_BYTES) * 100" | bc)
-echo ""
-echo "Size Reduction (debug → release): ${REDUCTION}%"
+if command -v bc >/dev/null 2>&1; then
+    REDUCTION=$(echo "scale=2; (1 - $RELEASE_SIZE_BYTES / $DEBUG_SIZE_BYTES) * 100" | bc)
+    echo ""
+    echo "Size Reduction (debug → release): ${REDUCTION}%"
+fi
 echo ""
 echo "========================================="

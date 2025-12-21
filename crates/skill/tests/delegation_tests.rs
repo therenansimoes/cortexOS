@@ -89,13 +89,12 @@ async fn test_remote_task_delegation() {
         Arc::clone(&trust_graph),
     ));
 
-    let network_skills = NetworkSkillRegistry::new(my_id);
+    let network_skills = Arc::new(RwLock::new(NetworkSkillRegistry::new(my_id)));
     let test_skill = SkillId::new("test.skill");
     
     // Register that remote node has the skill
-    network_skills.register_node_skill(remote_id, test_skill.clone());
+    network_skills.write().await.register_node_skill(remote_id, test_skill.clone());
     
-    let network_skills = Arc::new(RwLock::new(network_skills));
     let router = Arc::new(SkillRouter::new(
         my_id,
         Arc::clone(&trust_graph),

@@ -14,6 +14,9 @@ async-trait.workspace = true
 serde.workspace = true
 bincode.workspace = true
 
+# Random number generation for evolution
+rand.workspace = true
+
 # Error handling
 thiserror.workspace = true
 
@@ -21,4 +24,5 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 tracing-subscriber.workspace = true

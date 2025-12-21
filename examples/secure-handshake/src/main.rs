@@ -51,7 +51,7 @@ fn main() {
     println!("     - X25519 ephemeral key");
     println!("     - Timestamp (for replay prevention)");
     println!("     - Signature over all fields");
-    let hello = initiator.start();
+    let hello = initiator.start().unwrap();
 
     // Step 2: Responder processes HELLO and sends CHALLENGE
     println!("   ← Responder validates HELLO");
@@ -128,10 +128,10 @@ fn main() {
         println!("╠═══════════════════════════════════════════════════════════════╣");
         println!("║ ✓ End-to-end encryption (X25519 + ChaCha20-Poly1305)        ║");
         println!("║ ✓ Mutual authentication (Ed25519 signatures)                 ║");
-        println!("║ ✓ Replay attack prevention (timestamp + nonce tracking)     ║");
+        println!("║ ✓ Replay attack prevention (timestamp + state machine)      ║");
         println!("║ ✓ MITM protection (public key verification)                 ║");
         println!("║ ✓ Perfect forward secrecy (ephemeral keys)                  ║");
-        println!("║ ✓ Fast handshake (~6ms median, < 100ms target)              ║");
+        println!("║ ✓ Fast handshake (~6ms median, < 5s timeout)                ║");
         println!("╚═══════════════════════════════════════════════════════════════╝");
     } else {
         println!("✗ Handshake failed!");

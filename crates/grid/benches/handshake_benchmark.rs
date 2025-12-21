@@ -40,7 +40,7 @@ fn main() {
         let start = Instant::now();
 
         // Perform handshake
-        let hello = initiator.start();
+        let hello = initiator.start().unwrap();
         let challenge = responder.process(hello).unwrap().unwrap();
         let prove = initiator.process(challenge).unwrap().unwrap();
         let welcome = responder.process(prove).unwrap().unwrap();
@@ -55,7 +55,7 @@ fn main() {
 
         if (i + 1) % 10 == 0 {
             print!(".");
-            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            let _ = std::io::Write::flush(&mut std::io::stdout());
         }
     }
 
@@ -110,5 +110,5 @@ fn main() {
     println!("  ✓ Ed25519 signatures for authentication");
     println!("  ✓ Challenge-response for liveness proof");
     println!("  ✓ Timestamp validation for replay prevention");
-    println!("  ✓ Nonce tracking for replay prevention");
+    println!("  ✓ State machine enforces message ordering");
 }

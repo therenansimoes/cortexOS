@@ -7,6 +7,7 @@ use rand::RngCore;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{debug, info, warn};
 use x25519_dalek::{PublicKey, StaticSecret};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::error::{GridError, Result};
 use crate::peer::{Capabilities, NodeId};
@@ -15,8 +16,8 @@ use crate::wire::{Message, SessionParams, PROTOCOL_VERSION};
 /// Maximum allowed time drift for timestamp validation (5 minutes)
 const MAX_TIMESTAMP_DRIFT_SECS: u64 = 300;
 
-/// Handshake timeout in milliseconds
-const HANDSHAKE_TIMEOUT_MS: u64 = 100;
+/// Handshake timeout in milliseconds (5 seconds for network conditions including WASM)
+const HANDSHAKE_TIMEOUT_MS: u64 = 5_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandshakeState {
@@ -29,11 +30,14 @@ pub enum HandshakeState {
 }
 
 /// Session keys for post-handshake encryption
-#[derive(Debug, Clone)]
+/// 
+/// This struct implements Zeroize to ensure encryption keys are securely
+/// erased from memory when no longer needed, preventing key recovery attacks.
+#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SessionKeys {
+    #[zeroize(skip)] // Session IDs don't need zeroing
     pub session_id: [u8; 32],
     pub encryption_key: [u8; 32],
-    pub initiated_at: SystemTime,
 }
 
 impl SessionKeys {
@@ -41,11 +45,14 @@ impl SessionKeys {
         Self {
             session_id,
             encryption_key,
-            initiated_at: SystemTime::now(),
         }
     }
 
     /// Encrypt data using the session key
+    /// 
+    /// Uses ChaCha20-Poly1305 AEAD with random nonces. Nonce uniqueness
+    /// relies on the cryptographic RNG (thread_rng) which is designed to
+    /// prevent nonce reuse even under adversarial conditions.
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
         let cipher = ChaCha20Poly1305::new_from_slice(&self.encryption_key)
             .map_err(|e| GridError::EncryptionError(e.to_string()))?;
@@ -91,13 +98,11 @@ pub struct HandshakeContext {
     pub remote_pubkey: Option<[u8; 32]>,
     pub nonce: Option<[u8; 32]>,
     pub capabilities: Capabilities,
-    // X25519 keys for session encryption
-    pub x25519_secret: StaticSecret,
+    // X25519 keys for session encryption (will be zeroized after key agreement)
+    pub x25519_secret: Option<StaticSecret>,
     pub x25519_public: PublicKey,
     pub remote_x25519_public: Option<PublicKey>,
     pub session_keys: Option<SessionKeys>,
-    // Replay attack prevention
-    pub used_nonces: Vec<[u8; 32]>,
     pub handshake_started_at: Option<SystemTime>,
 }
 
@@ -114,21 +119,20 @@ impl HandshakeContext {
             remote_pubkey: None,
             nonce: None,
             capabilities,
-            x25519_secret,
+            x25519_secret: Some(x25519_secret),
             x25519_public,
             remote_x25519_public: None,
             session_keys: None,
-            used_nonces: Vec::new(),
             handshake_started_at: None,
         }
     }
 
-    pub fn create_hello(&self) -> Message {
+    pub fn create_hello(&self) -> Result<Message> {
         let pubkey = self.local_signing_key.verifying_key().to_bytes();
         let caps_encoded = self.capabilities.encode();
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("System clock is set before UNIX epoch")
+            .map_err(|e| GridError::HandshakeFailed(format!("System time is before UNIX epoch: {}", e)))?
             .as_secs();
 
         let mut sign_data = Vec::new();
@@ -141,7 +145,7 @@ impl HandshakeContext {
 
         let signature = self.local_signing_key.sign(&sign_data);
 
-        Message::Hello {
+        Ok(Message::Hello {
             protocol_version: PROTOCOL_VERSION,
             node_id: self.local_node_id,
             pubkey,
@@ -149,7 +153,7 @@ impl HandshakeContext {
             x25519_pubkey: *self.x25519_public.as_bytes(),
             timestamp,
             signature: signature.to_bytes().to_vec(),
-        }
+        })
     }
 
     pub fn create_challenge(&mut self) -> Message {
@@ -178,9 +182,14 @@ impl HandshakeContext {
         let remote_x25519 = self.remote_x25519_public
             .ok_or_else(|| GridError::HandshakeFailed("No remote X25519 pubkey".to_string()))?;
 
-        let shared_secret = self.x25519_secret.diffie_hellman(&remote_x25519);
+        let x25519_secret = self.x25519_secret.take()
+            .ok_or_else(|| GridError::HandshakeFailed("X25519 secret already consumed".to_string()))?;
+
+        let shared_secret = x25519_secret.diffie_hellman(&remote_x25519);
         let encryption_key = blake3::derive_key("cortex-session-v1", shared_secret.as_bytes());
 
+        // X25519 secret is consumed and will be dropped/zeroized here (perfect forward secrecy)
+        
         self.session_keys = Some(SessionKeys::new(session_id, encryption_key));
 
         Ok(Message::Welcome {
@@ -192,26 +201,11 @@ impl HandshakeContext {
         })
     }
 
-    /// Check if nonce has been used (replay attack prevention)
-    fn is_nonce_used(&self, nonce: &[u8; 32]) -> bool {
-        self.used_nonces.contains(nonce)
-    }
-
-    /// Mark nonce as used
-    fn mark_nonce_used(&mut self, nonce: [u8; 32]) {
-        self.used_nonces.push(nonce);
-        // Keep only last 100 nonces to prevent memory bloat
-        if self.used_nonces.len() > 100 {
-            // Remove oldest nonces efficiently
-            self.used_nonces.drain(0..self.used_nonces.len() - 100);
-        }
-    }
-
     /// Validate timestamp to prevent replay attacks
     fn validate_timestamp(&self, timestamp: u64) -> Result<()> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("System clock is set before UNIX epoch")
+            .map_err(|e| GridError::HandshakeFailed(format!("System time is before UNIX epoch: {}", e)))?
             .as_secs();
 
         let diff = if now > timestamp {
@@ -274,7 +268,7 @@ impl Handshaker {
         self.context.state
     }
 
-    pub fn start(&mut self) -> Message {
+    pub fn start(&mut self) -> Result<Message> {
         debug!("Starting handshake as initiator");
         self.context.state = HandshakeState::HelloSent;
         self.context.handshake_started_at = Some(SystemTime::now());
@@ -316,14 +310,9 @@ impl Handshaker {
             (HandshakeState::HelloSent, Message::Challenge { nonce, x25519_pubkey }) => {
                 debug!("Received CHALLENGE");
 
-                // Check for nonce reuse (replay attack)
-                if self.context.is_nonce_used(&nonce) {
-                    return Err(GridError::HandshakeFailed("Nonce reuse detected".to_string()));
-                }
-
-                self.context.mark_nonce_used(nonce);
-                self.context.state = HandshakeState::ChallengeReceived;
+                // Store the received challenge nonce for signing
                 self.context.nonce = Some(nonce);
+                self.context.state = HandshakeState::ChallengeReceived;
                 self.context.remote_x25519_public = Some(PublicKey::from(x25519_pubkey));
 
                 let prove = self.context.create_prove(&nonce);
@@ -355,8 +344,13 @@ impl Handshaker {
                 let remote_x25519 = self.context.remote_x25519_public
                     .ok_or_else(|| GridError::HandshakeFailed("No remote X25519 pubkey".to_string()))?;
 
-                let shared_secret = self.context.x25519_secret.diffie_hellman(&remote_x25519);
+                let x25519_secret = self.context.x25519_secret.take()
+                    .ok_or_else(|| GridError::HandshakeFailed("X25519 secret already consumed".to_string()))?;
+
+                let shared_secret = x25519_secret.diffie_hellman(&remote_x25519);
                 let encryption_key = blake3::derive_key("cortex-session-v1", shared_secret.as_bytes());
+
+                // X25519 secret is consumed and will be dropped/zeroized here (perfect forward secrecy)
 
                 self.context.session_keys = Some(SessionKeys::new(session_params.session_id, encryption_key));
                 self.context.state = HandshakeState::Completed;
@@ -486,7 +480,7 @@ mod tests {
             Capabilities::default(),
         );
 
-        let hello = initiator.start();
+        let hello = initiator.start().unwrap();
         let challenge = responder.process(hello).unwrap().unwrap();
         let prove = initiator.process(challenge).unwrap().unwrap();
         let welcome = responder.process(prove).unwrap().unwrap();
@@ -537,7 +531,7 @@ mod tests {
         );
 
         // Complete handshake
-        let hello = initiator.start();
+        let hello = initiator.start().unwrap();
         let challenge = responder.process(hello).unwrap().unwrap();
         let prove = initiator.process(challenge).unwrap().unwrap();
         let welcome = responder.process(prove).unwrap().unwrap();
@@ -577,15 +571,11 @@ mod tests {
             Capabilities::default(),
         );
 
-        let hello = initiator.start();
+        let hello = initiator.start().unwrap();
         let challenge = responder.process(hello).unwrap().unwrap();
         
         // Complete handshake normally
-        let _prove = initiator.process(challenge.clone()).unwrap().unwrap();
-        
-        // Try to replay the challenge - this should fail because nonce is already used
-        let result = initiator.process(challenge);
-        assert!(result.is_err(), "Should detect nonce reuse");
+        let _prove = initiator.process(challenge).unwrap().unwrap();
     }
 
     #[test]
@@ -638,7 +628,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nonce_reuse_detection() {
+    fn test_state_machine_prevents_replays() {
         let initiator_key = SigningKey::generate(&mut OsRng);
         let responder_key = SigningKey::generate(&mut OsRng);
 
@@ -660,15 +650,15 @@ mod tests {
             Capabilities::default(),
         );
 
-        let hello = initiator.start();
+        let hello = initiator.start().unwrap();
         let challenge = responder.process(hello).unwrap().unwrap();
 
-        // Process challenge once
+        // Process challenge once - advances state to ProveSent
         let _prove = initiator.process(challenge.clone()).unwrap();
 
-        // Try to replay the challenge
+        // Try to replay the challenge - should fail because state is now ProveSent, not HelloSent
         let result = initiator.process(challenge);
-        assert!(result.is_err(), "Should detect nonce reuse");
+        assert!(result.is_err(), "Should reject message in wrong state");
     }
 
     #[test]

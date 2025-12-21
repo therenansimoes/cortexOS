@@ -17,6 +17,9 @@ members = [
     "examples/relay-demo",
     "examples/skill-network",
     "examples/signal-evolution",
+    "examples/llm-inference",
+    "examples/multi-hop-demo",
+    "examples/wasm-demo",
 ]
 
 [workspace.package]
@@ -68,3 +71,12 @@ getrandom = { version = "0.2", features = ["js"] }
 lto = true
 codegen-units = 1
 opt-level = "z"  # Optimize for size (important for WASM)
+
+# WASM-specific release profile
+[profile.wasm-release]
+inherits = "release"
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

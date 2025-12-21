@@ -1,0 +1,13 @@
+[package]
+name = "llm-inference"
+version.workspace = true
+edition.workspace = true
+description = "Example of local LLM inference"
+publish = false
+
+[dependencies]
+cortex-inference = { path = "../../crates/inference", features = ["llama"] }
+cortex-core = { path = "../../crates/core" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

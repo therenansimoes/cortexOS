@@ -7,21 +7,22 @@ edition.workspace = true
 cortex-core = { path = "../core" }
 
 # Async runtime
-tokio = { workspace = true }
-async-trait = { workspace = true }
+tokio.workspace = true
+async-trait.workspace = true
 
 # Serialization
-serde = { workspace = true }
-bincode = { workspace = true }
+serde.workspace = true
+bincode.workspace = true
 
 # Random number generation for evolution
-rand = { workspace = true }
+rand.workspace = true
 
 # Error handling
-thiserror = { workspace = true }
+thiserror.workspace = true
 
 # Logging
-tracing = { workspace = true }
+tracing.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber.workspace = true

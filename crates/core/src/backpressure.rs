@@ -217,4 +217,91 @@ mod tests {
         }
         assert_eq!(queue.len(), 3);
     }
+
+    #[test]
+    fn test_coalesce_with_keys() {
+        let queue: PolicyQueue<TestItem> = 
+            PolicyQueue::new(BackpressurePolicy::Coalesce("key".to_string()), 5);
+        
+        // Push items with the same key - should coalesce
+        queue.push(TestItem {
+            key: Some("k1".to_string()),
+            value: 1,
+        }).unwrap();
+        
+        queue.push(TestItem {
+            key: Some("k1".to_string()),
+            value: 2,
+        }).unwrap();
+        
+        assert_eq!(queue.len(), 1);
+        let item = queue.pop().unwrap();
+        assert_eq!(item.value, 2); // Should have the latest value
+    }
+
+    #[test]
+    fn test_coalesce_different_keys() {
+        let queue: PolicyQueue<TestItem> = 
+            PolicyQueue::new(BackpressurePolicy::Coalesce("key".to_string()), 5);
+        
+        queue.push(TestItem {
+            key: Some("k1".to_string()),
+            value: 1,
+        }).unwrap();
+        
+        queue.push(TestItem {
+            key: Some("k2".to_string()),
+            value: 2,
+        }).unwrap();
+        
+        assert_eq!(queue.len(), 2);
+    }
+
+    #[test]
+    fn test_persist_policy() {
+        let queue: PolicyQueue<TestItem> = PolicyQueue::new(BackpressurePolicy::Persist, 2);
+        
+        queue.push(TestItem { key: None, value: 1 }).unwrap();
+        queue.push(TestItem { key: None, value: 2 }).unwrap();
+        
+        // Third item should fail since persist is not fully implemented
+        let result = queue.push(TestItem { key: None, value: 3 });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_queue_capacity() {
+        let queue: PolicyQueue<TestItem> = PolicyQueue::new(BackpressurePolicy::DropNew, 10);
+        assert_eq!(queue.capacity(), 10);
+        assert_eq!(queue.len(), 0);
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn test_drop_old_maintains_capacity() {
+        let queue: PolicyQueue<TestItem> = PolicyQueue::new(BackpressurePolicy::DropOld, 3);
+        
+        for i in 0..10 {
+            queue.push(TestItem { key: None, value: i }).unwrap();
+        }
+        
+        assert!(queue.len() <= 3);
+        
+        // Should have the most recent values
+        let item = queue.pop().unwrap();
+        assert!(item.value >= 7);
+    }
+
+    #[test]
+    fn test_sample_exact_multiples() {
+        let queue: PolicyQueue<TestItem> = PolicyQueue::new(BackpressurePolicy::Sample(2), 10);
+        
+        // Push exactly 6 items with sample rate 2
+        for i in 0..6 {
+            queue.push(TestItem { key: None, value: i }).unwrap();
+        }
+        
+        // Should have 3 items (every 2nd item)
+        assert_eq!(queue.len(), 3);
+    }
 }

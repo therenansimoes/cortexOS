@@ -7,24 +7,29 @@
 /// - Signal evolution framework
 /// - Pattern recognition
 /// - Adaptive learning
+/// - Multi-hop routing and forwarding
 
 pub mod codebook;
 pub mod emitter;
 pub mod error;
 pub mod evolution;
+pub mod forwarder;
 pub mod learning;
 pub mod negotiation;
 pub mod receiver;
 pub mod recognition;
+pub mod routing;
 pub mod signal;
 
 // Re-export commonly used types
 pub use codebook::{Codebook, CodebookEntry, StandardSymbol};
 pub use emitter::{ConsoleEmitter, Emitter, MockEmitter};
-pub use error::{DecodeError, EmitError, NegotiationError, ReceiveError, SignalError};
+pub use error::{DecodeError, EmitError, NegotiationError, ReceiveError, RoutingError, SignalError};
 pub use evolution::{EvolutionConfig, EvolutionEngine, EvolvedPattern, FitnessMetrics};
+pub use forwarder::{ForwardedMessage, SignalForwarder};
 pub use learning::{CommunicationOutcome, LearningConfig, LearningStats, LearningStrategy, LearningSystem};
 pub use negotiation::{ChannelNegotiator, ChannelQuality};
 pub use receiver::{MockReceiver, Receiver};
 pub use recognition::{MatchConfidence, RecognitionConfig, RecognitionEngine, RecognizedSignal, SignalTemplate};
+pub use routing::{MultiHopRouter, Route, RouteQuality, RoutingTable};
 pub use signal::{Channel, Pulse, Signal, SignalPattern};

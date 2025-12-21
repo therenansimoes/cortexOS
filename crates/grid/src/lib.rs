@@ -8,7 +8,7 @@ pub mod wire;
 
 pub use discovery::{Discovery, DiscoveryEvent, KademliaDiscovery, LanDiscovery, MdnsDiscovery};
 pub use error::{GridError, Result};
-pub use handshake::{HandshakeState, Handshaker};
+pub use handshake::{HandshakeState, Handshaker, SessionKeys};
 pub use orchestrator::GridOrchestrator;
 pub use peer::{Capabilities, NodeId, PeerInfo, PeerStore};
 pub use relay::{BeaconStore, RelayBeacon, RelayEncryption, RelayNode, RotatingIdentity};

@@ -4,7 +4,7 @@ use chacha20poly1305::{
 };
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::RngCore;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{debug, info, warn};
 use x25519_dalek::{PublicKey, StaticSecret};
 
@@ -128,7 +128,7 @@ impl HandshakeContext {
         let caps_encoded = self.capabilities.encode();
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("System clock is set before UNIX epoch")
             .as_secs();
 
         let mut sign_data = Vec::new();
@@ -202,7 +202,8 @@ impl HandshakeContext {
         self.used_nonces.push(nonce);
         // Keep only last 100 nonces to prevent memory bloat
         if self.used_nonces.len() > 100 {
-            self.used_nonces.remove(0);
+            // Remove oldest nonces efficiently
+            self.used_nonces.drain(0..self.used_nonces.len() - 100);
         }
     }
 
@@ -210,7 +211,7 @@ impl HandshakeContext {
     fn validate_timestamp(&self, timestamp: u64) -> Result<()> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("System clock is set before UNIX epoch")
             .as_secs();
 
         let diff = if now > timestamp {
@@ -234,8 +235,9 @@ impl HandshakeContext {
             let elapsed = started_at.elapsed()
                 .map_err(|e| GridError::HandshakeFailed(format!("Time error: {}", e)))?;
 
-            if elapsed.as_millis() > HANDSHAKE_TIMEOUT_MS as u128 {
-                warn!("Handshake timeout: {}ms > {}ms", elapsed.as_millis(), HANDSHAKE_TIMEOUT_MS);
+            let timeout_duration = Duration::from_millis(HANDSHAKE_TIMEOUT_MS);
+            if elapsed > timeout_duration {
+                warn!("Handshake timeout: {:?} > {:?}", elapsed, timeout_duration);
                 return Err(GridError::Timeout);
             }
         }

@@ -210,3 +210,19 @@ async fn test_metrics_tracking() {
     assert_eq!(metrics.total_failed, 0);
     assert_eq!(metrics.success_rate(), 0.0);
 }
+
+/// Test priority bucketing
+#[tokio::test]
+async fn test_priority_bucketing() {
+    use cortex_grid::TaskPriority;
+
+    // Test the priority mapping ranges
+    assert_eq!(TaskPriority::from(0), TaskPriority::Low);
+    assert_eq!(TaskPriority::from(63), TaskPriority::Low);
+    assert_eq!(TaskPriority::from(64), TaskPriority::Normal);
+    assert_eq!(TaskPriority::from(127), TaskPriority::Normal);
+    assert_eq!(TaskPriority::from(128), TaskPriority::High);
+    assert_eq!(TaskPriority::from(191), TaskPriority::High);
+    assert_eq!(TaskPriority::from(192), TaskPriority::Critical);
+    assert_eq!(TaskPriority::from(255), TaskPriority::Critical);
+}

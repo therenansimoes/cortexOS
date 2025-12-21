@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, info};
 
 use cortex_core::event::{Event, Payload};
@@ -37,8 +37,7 @@ pub struct DelegationCoordinator {
     /// Task results waiting for collection
     results: Arc<RwLock<HashMap<TaskId, TaskResult>>>,
     /// Shutdown signal
-    shutdown_tx: mpsc::Sender<()>,
-    shutdown_rx: Option<mpsc::Receiver<()>>,
+    shutdown_tx: broadcast::Sender<()>,
 }
 
 impl DelegationCoordinator {
@@ -49,7 +48,7 @@ impl DelegationCoordinator {
         router: Arc<SkillRouter>,
         event_bus: Arc<EventBus>,
     ) -> Self {
-        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
+        let (shutdown_tx, _) = broadcast::channel(1);
 
         Self {
             my_id,
@@ -62,7 +61,6 @@ impl DelegationCoordinator {
             active_tasks: Arc::new(RwLock::new(HashMap::new())),
             results: Arc::new(RwLock::new(HashMap::new())),
             shutdown_tx,
-            shutdown_rx: Some(shutdown_rx),
         }
     }
 
@@ -105,17 +103,17 @@ impl DelegationCoordinator {
             created_at: Instant::now(),
         };
 
-        // Enqueue the task
-        if !self.task_queue.enqueue(queued_task).await {
-            return Err(SkillError::QueueFull);
-        }
-
-        // If target is self, execute locally
+        // If target is self, execute locally without enqueueing
         if target_node == self.my_id {
             info!("Task {} assigned to self, executing locally", task_id);
             let result = self.executor.execute_task(task).await;
             self.handle_result(result).await?;
         } else {
+            // Enqueue the task for remote processing
+            if !self.task_queue.enqueue(queued_task).await {
+                return Err(SkillError::QueueFull);
+            }
+            
             // Delegate to remote node via orchestrator
             self.orchestrator
                 .delegate_task(grid_task_id, payload)
@@ -128,42 +126,14 @@ impl DelegationCoordinator {
 
     /// Handle a task result (local or remote)
     async fn handle_result(&self, result: TaskResult) -> Result<()> {
-        let task_id = result.task_id;
-        let success = result.success;
-
-        // Remove from active tasks
-        if let Some(_task) = self.active_tasks.write().await.remove(&task_id) {
-            // Record metrics
-            if success {
-                let duration = std::time::Duration::from_millis(result.duration_ms);
-                self.metrics.record_completed(result.executor, duration).await;
-            } else {
-                self.metrics.record_failed(result.executor).await;
-            }
-
-            // Complete in queue
-            let grid_task_id = task_id_to_bytes(&task_id);
-            self.task_queue.complete(&grid_task_id).await;
-
-            // Store result
-            self.results.write().await.insert(task_id, result.clone());
-
-            // Publish event
-            let event_kind = if success {
-                "skill.task.completed"
-            } else {
-                "skill.task.failed"
-            };
-
-            let event_payload = serde_json::to_vec(&result)
-                .unwrap_or_default();
-
-            let event = Event::new("delegation.coordinator", event_kind, Payload::inline(event_payload));
-            let _ = self.event_bus.publish(event);
-
-            info!("Task {} {}", task_id, if success { "completed" } else { "failed" });
-        }
-
+        handle_task_result(
+            result,
+            &self.active_tasks,
+            &self.task_queue,
+            &self.results,
+            &self.metrics,
+            &self.event_bus,
+        ).await;
         Ok(())
     }
 
@@ -179,47 +149,50 @@ impl DelegationCoordinator {
 
     /// Start the delegation coordinator
     pub async fn start(&mut self) -> Result<()> {
-        let shutdown_rx = self.shutdown_rx.take()
-            .ok_or_else(|| SkillError::ExecutionFailed("Coordinator already started".to_string()))?;
-
         // Spawn timeout checker
         let task_queue = Arc::clone(&self.task_queue);
         let metrics = Arc::clone(&self.metrics);
         let active_tasks = Arc::clone(&self.active_tasks);
+        let mut shutdown_rx_timeout = self.shutdown_tx.subscribe();
         
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
             loop {
-                interval.tick().await;
-
-                // Check for timed-out tasks
-                let timed_out = task_queue.cleanup_timeouts(TASK_TIMEOUT_SECS).await;
-                
-                for grid_task_id in timed_out {
-                    metrics.record_timed_out().await;
-                    
-                    // Try to find and remove from active tasks
-                    let mut tasks = active_tasks.write().await;
-                    tasks.retain(|_, task| {
-                        let task_grid_id = task_id_to_bytes(&task.id);
-                        task_grid_id != grid_task_id
-                    });
+                tokio::select! {
+                    _ = interval.tick() => {
+                        // Check for timed-out tasks
+                        let timed_out = task_queue.cleanup_timeouts(TASK_TIMEOUT_SECS).await;
+                        
+                        for grid_task_id in timed_out {
+                            metrics.record_timed_out().await;
+                            
+                            // Try to find and remove from active tasks
+                            let mut tasks = active_tasks.write().await;
+                            tasks.retain(|_, task| {
+                                let task_grid_id = task_id_to_bytes(&task.id);
+                                task_grid_id != grid_task_id
+                            });
+                        }
+                    }
+                    _ = shutdown_rx_timeout.recv() => {
+                        info!("Timeout checker shutting down");
+                        break;
+                    }
                 }
             }
         });
 
         // Spawn task processor
         let task_queue_proc = Arc::clone(&self.task_queue);
-        let _orchestrator_proc = Arc::clone(&self.orchestrator);
         let active_tasks_proc = Arc::clone(&self.active_tasks);
         let executor_proc = Arc::clone(&self.executor);
         let my_id_proc = self.my_id;
         let results_proc = Arc::clone(&self.results);
         let event_bus_proc = Arc::clone(&self.event_bus);
         let metrics_proc = Arc::clone(&self.metrics);
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
 
         tokio::spawn(async move {
-            let mut shutdown_rx = shutdown_rx;
             loop {
                 tokio::select! {
                     _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
@@ -232,30 +205,15 @@ impl DelegationCoordinator {
                                         // Execute locally
                                         let result = executor_proc.execute_task(skill_task).await;
                                         
-                                        // Handle result
-                                        let task_id = result.task_id;
-                                        let success = result.success;
-                                        
-                                        active_tasks_proc.write().await.remove(&task_id);
-                                        
-                                        if success {
-                                            let duration = std::time::Duration::from_millis(result.duration_ms);
-                                            metrics_proc.record_completed(result.executor, duration).await;
-                                        } else {
-                                            metrics_proc.record_failed(result.executor).await;
-                                        }
-                                        
-                                        results_proc.write().await.insert(task_id, result.clone());
-                                        
-                                        let event_kind = if success {
-                                            "skill.task.completed"
-                                        } else {
-                                            "skill.task.failed"
-                                        };
-                                        
-                                        let event_payload = serde_json::to_vec(&result).unwrap_or_default();
-                                        let event = Event::new("delegation.coordinator", event_kind, Payload::inline(event_payload));
-                                        let _ = event_bus_proc.publish(event);
+                                        // Handle result using shared helper
+                                        handle_task_result(
+                                            result,
+                                            &active_tasks_proc,
+                                            &task_queue_proc,
+                                            &results_proc,
+                                            &metrics_proc,
+                                            &event_bus_proc,
+                                        ).await;
                                     }
                                     // Remote execution is handled by orchestrator
                                 }
@@ -276,10 +234,7 @@ impl DelegationCoordinator {
 
     /// Stop the coordinator
     pub async fn stop(&self) -> Result<()> {
-        self.shutdown_tx
-            .send(())
-            .await
-            .map_err(|_| SkillError::ExecutionFailed("Failed to send shutdown signal".to_string()))?;
+        let _ = self.shutdown_tx.send(());
         Ok(())
     }
 
@@ -291,6 +246,50 @@ impl DelegationCoordinator {
     /// Get count of active tasks
     pub async fn active_count(&self) -> usize {
         self.active_tasks.read().await.len()
+    }
+}
+
+/// Helper function to handle task results (shared between submit_task and task processor)
+async fn handle_task_result(
+    result: TaskResult,
+    active_tasks: &Arc<RwLock<HashMap<TaskId, SkillTask>>>,
+    task_queue: &Arc<TaskQueue>,
+    results: &Arc<RwLock<HashMap<TaskId, TaskResult>>>,
+    metrics: &Arc<MetricsTracker>,
+    event_bus: &Arc<EventBus>,
+) {
+    let task_id = result.task_id;
+    let success = result.success;
+
+    // Remove from active tasks
+    if active_tasks.write().await.remove(&task_id).is_some() {
+        // Record metrics
+        if success {
+            let duration = std::time::Duration::from_millis(result.duration_ms);
+            metrics.record_completed(result.executor, duration).await;
+        } else {
+            metrics.record_failed(result.executor).await;
+        }
+
+        // Complete in queue
+        let grid_task_id = task_id_to_bytes(&task_id);
+        task_queue.complete(&grid_task_id).await;
+
+        // Store result
+        results.write().await.insert(task_id, result.clone());
+
+        // Publish event
+        let event_kind = if success {
+            "skill.task.completed"
+        } else {
+            "skill.task.failed"
+        };
+
+        let event_payload = serde_json::to_vec(&result).unwrap_or_default();
+        let event = Event::new("delegation.coordinator", event_kind, Payload::inline(event_payload));
+        let _ = event_bus.publish(event);
+
+        info!("Task {} {}", task_id, if success { "completed" } else { "failed" });
     }
 }
 

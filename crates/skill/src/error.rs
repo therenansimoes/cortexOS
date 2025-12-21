@@ -21,9 +21,6 @@ pub enum SkillError {
     InvalidInput(String),
 
     #[error("Serialization error: {0}")]
-    Serialization(String),
-
-    #[error("Serialization error: {0}")]
     SerializationError(String),
 
     #[error("Network error: {0}")]

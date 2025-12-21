@@ -258,7 +258,7 @@ let input = SkillInput::json(serde_json::json!({
 }));
 
 let task = SkillTask::new(skill, input, my_node_id)
-    .with_priority(8)  // High priority
+    .with_priority(150)  // High priority (128-191 range)
     .with_timeout(60)  // 1 minute timeout
     .with_min_trust(0.5);  // Require 50% trust
 

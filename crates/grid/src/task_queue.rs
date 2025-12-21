@@ -15,12 +15,14 @@ pub enum TaskPriority {
 }
 
 impl From<u8> for TaskPriority {
+    /// Convert u8 priority to TaskPriority with proper bucketing.
+    /// Maps: 0-63 -> Low, 64-127 -> Normal, 128-191 -> High, 192-255 -> Critical
     fn from(value: u8) -> Self {
         match value {
-            0 => TaskPriority::Low,
-            1 => TaskPriority::Normal,
-            2 => TaskPriority::High,
-            _ => TaskPriority::Critical,
+            0..=63 => TaskPriority::Low,
+            64..=127 => TaskPriority::Normal,
+            128..=191 => TaskPriority::High,
+            192..=255 => TaskPriority::Critical,
         }
     }
 }
@@ -37,6 +39,11 @@ pub struct QueuedTask {
 }
 
 /// Task queue manager with priority support
+/// 
+/// **Backpressure Policy**: drop_new
+/// When a priority queue reaches max_queue_size, new tasks for that priority
+/// are dropped (rejected) and enqueu returns false. This prevents memory exhaustion
+/// while maintaining fairness across priority levels.
 pub struct TaskQueue {
     /// Priority queues (Critical -> High -> Normal -> Low)
     queues: Arc<RwLock<HashMap<TaskPriority, VecDeque<QueuedTask>>>>,

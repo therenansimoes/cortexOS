@@ -89,8 +89,6 @@ impl SkillExecutor {
 
     /// Execute a task and report result
     pub async fn execute_task(&self, mut task: SkillTask) -> TaskResult {
-        let _start = Instant::now();
-
         task.start(self.my_id);
 
         match self.execute(&task.skill, task.input.clone()).await {

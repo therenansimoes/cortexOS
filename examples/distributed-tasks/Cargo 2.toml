@@ -1,0 +1,18 @@
+[package]
+name = "example-distributed-tasks"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "distributed-tasks"
+path = "src/main.rs"
+
+[dependencies]
+cortex-core = { path = "../../crates/core" }
+cortex-grid = { path = "../../crates/grid" }
+cortex-skill = { path = "../../crates/skill" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+blake3 = { workspace = true }
+

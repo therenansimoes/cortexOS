@@ -1,0 +1,12 @@
+[package]
+name = "wasm-demo"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "wasm-demo"
+path = "src/main.rs"
+
+[dependencies]
+cortex-core = { path = "../../crates/core" }
+

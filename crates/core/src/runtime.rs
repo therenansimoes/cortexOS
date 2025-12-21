@@ -66,12 +66,20 @@ impl EventBus {
     }
 
     pub fn publish(&self, event: Event) -> Result<()> {
-        let _ = self.broadcast.send(event.clone());
+        if self.broadcast.send(event.clone()).is_err() {
+            tracing::warn!(kind = %event.kind(), "No broadcast receivers for event");
+        }
 
         let subscriptions = self.subscriptions.read();
         for sub in subscriptions.iter() {
             if pattern_matches(&sub.pattern, event.kind()) {
-                let _ = sub.sender.try_send(event.clone());
+                if sub.sender.try_send(event.clone()).is_err() {
+                    tracing::warn!(
+                        pattern = %sub.pattern,
+                        kind = %event.kind(),
+                        "Subscriber channel full or closed, event dropped"
+                    );
+                }
             }
         }
         Ok(())
@@ -84,11 +92,19 @@ impl EventBus {
         let subscriptions = self.subscriptions.read();
         
         for event in events {
-            let _ = self.broadcast.send(event.clone());
+            if self.broadcast.send(event.clone()).is_err() {
+                tracing::warn!(kind = %event.kind(), "No broadcast receivers for event");
+            }
             
             for sub in subscriptions.iter() {
                 if pattern_matches(&sub.pattern, event.kind()) {
-                    let _ = sub.sender.try_send(event.clone());
+                    if sub.sender.try_send(event.clone()).is_err() {
+                        tracing::warn!(
+                            pattern = %sub.pattern,
+                            kind = %event.kind(),
+                            "Subscriber channel full or closed, event dropped"
+                        );
+                    }
                 }
             }
             published += 1;

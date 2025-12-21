@@ -134,9 +134,11 @@ impl Event {
         }
 
         // Validate kind format (should be versioned like "sensor.mic.v1")
-        if !kind.contains('.') {
+        // Must have at least 2 parts separated by dots for basic namespacing
+        let parts: Vec<&str> = kind.split('.').collect();
+        if parts.len() < 2 {
             return Err(CoreError::InvalidEvent(
-                "Event kind should be dot-separated (e.g., 'sensor.mic.v1')".to_string(),
+                "Event kind must have at least 2 dot-separated parts (e.g., 'sensor.mic' or 'sensor.mic.v1')".to_string(),
             ));
         }
 
@@ -197,7 +199,27 @@ impl Event {
     }
 }
 
-/// Sanitize string by removing control characters
+/// Sanitize a string by removing control characters.
+///
+/// This function filters out control characters from the input string to prevent
+/// injection attacks or display issues. Newlines (`\n`) and tabs (`\t`) are preserved
+/// as they are commonly used in legitimate text data.
+///
+/// # Arguments
+///
+/// * `s` - The input string to sanitize
+///
+/// # Returns
+///
+/// A new string with control characters removed, except for newline and tab.
+///
+/// # Examples
+///
+/// ```ignore
+/// let input = "hello\x00\x01world";
+/// let sanitized = sanitize_string(input);
+/// assert_eq!(sanitized, "helloworld");
+/// ```
 fn sanitize_string(s: &str) -> String {
     s.chars()
         .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')

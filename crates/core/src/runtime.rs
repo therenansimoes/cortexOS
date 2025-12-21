@@ -249,7 +249,6 @@ impl Runtime {
         let agent = Arc::new(agent);
         let agent_clone = Arc::clone(&agent);
         let metrics = self.event_bus.metrics();
-        let _name_clone = name.clone();
 
         tokio::spawn(async move {
             if let Err(e) = agent_clone.start().await {

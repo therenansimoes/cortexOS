@@ -95,16 +95,12 @@ impl LanDiscovery {
         packet: Vec<u8>,
         running: Arc<RwLock<bool>>,
     ) {
-        let multicast_addr = format!("{}:{}", MULTICAST_ADDR, MULTICAST_PORT)
+        let multicast_addr = match format!("{}:{}", MULTICAST_ADDR, MULTICAST_PORT)
             .parse::<SocketAddr>()
-            .map_err(|e| {
-                error!("Failed to parse multicast address: {}", e);
-            });
-
-        let multicast_addr = match multicast_addr {
+        {
             Ok(addr) => addr,
-            Err(_) => {
-                error!("Invalid multicast address, announcer stopping");
+            Err(e) => {
+                error!("Failed to parse multicast address: {}, announcer stopping", e);
                 return;
             }
         };
@@ -272,9 +268,7 @@ impl MdnsDiscovery {
 
 impl Default for MdnsDiscovery {
     fn default() -> Self {
-        Self::new().unwrap_or_else(|e| {
-            panic!("Failed to create MdnsDiscovery: {}. This is a critical initialization error.", e)
-        })
+        Self::new().expect("Failed to create MdnsDiscovery: critical initialization error")
     }
 }
 

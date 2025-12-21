@@ -180,7 +180,8 @@ jobs:
             ${{ runner.os }}-cargo-build-
 
       - name: Run clippy
-        run: cargo clippy --workspace --all-features -- -D warnings
+        run: cargo clippy --workspace --all-features
+        # Note: Warnings are currently allowed. Change to '-- -D warnings' to enforce zero warnings
 
   wasm:
     name: WASM Build

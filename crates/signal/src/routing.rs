@@ -136,7 +136,12 @@ impl RoutingTable {
         routes.retain(|r| !r.is_expired());
         
         routes.push(route);
-        routes.sort_by(|a, b| b.quality.score().partial_cmp(&a.quality.score()).unwrap());
+        routes.sort_by(|a, b| {
+            b.quality
+                .score()
+                .partial_cmp(&a.quality.score())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         routes.truncate(MAX_ROUTES_PER_DESTINATION);
         
         debug!(

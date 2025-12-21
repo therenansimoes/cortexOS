@@ -20,3 +20,7 @@ tracing = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
+
+[[bench]]
+name = "handshake_benchmark"
+harness = false

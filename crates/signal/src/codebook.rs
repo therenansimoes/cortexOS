@@ -203,7 +203,16 @@ impl Codebook {
     }
 
     fn pattern_to_key(&self, pattern: &SignalPattern) -> Vec<u8> {
-        bincode::serialize(pattern).unwrap_or_default()
+        // Pre-calculate size: 1 byte (on/off) + 4 bytes (u32) per pulse
+        let capacity = pattern.pulses.len() * 5;
+        let mut key = Vec::with_capacity(capacity);
+        
+        for pulse in &pattern.pulses {
+            key.push(if pulse.on { 1u8 } else { 0u8 });
+            key.extend_from_slice(&pulse.duration_us.to_le_bytes());
+        }
+        
+        key
     }
 }
 

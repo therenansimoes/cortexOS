@@ -10,7 +10,6 @@ path = "src/main.rs"
 [dependencies]
 cortex-core = { path = "../../crates/core" }
 cortex-signal = { path = "../../crates/signal" }
-cortex-grid = { path = "../../crates/grid" }
 
 tokio.workspace = true
 tracing.workspace = true

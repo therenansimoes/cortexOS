@@ -1,259 +1,175 @@
-use std::sync::Arc;
-use std::time::Duration;
-
 use cortex_core::NodeId;
 use cortex_signal::{
-    Channel, ConsoleEmitter, ForwardedMessage, MultiHopRouter, RouteQuality, SignalForwarder,
+    Channel, Codebook, ConsoleEmitter, Emitter, MultiHopMessage, MultiHopRouter, Pulse, Route,
+    RouteHop, Signal, SignalPattern, StandardSymbol,
 };
+use std::sync::Arc;
 use tracing::{info, Level};
-use tracing_subscriber;
-
-fn create_node_id(n: u8) -> NodeId {
-    let mut bytes = [0u8; 16];
-    bytes[0] = n;
-    NodeId::from_bytes(bytes)
-}
-
-async fn simulate_node(
-    node_id: NodeId,
-    name: &str,
-    neighbors: Vec<(NodeId, Channel)>,
-) -> Arc<SignalForwarder> {
-    info!(node = %node_id, name = name, "Starting node");
-
-    let router = Arc::new(MultiHopRouter::new(node_id));
-    
-    for (neighbor, channel) in neighbors {
-        let path = vec![node_id, neighbor];
-        let quality = RouteQuality {
-            latency_us: 5000,
-            reliability: 0.95,
-            signal_strength: 0.9,
-            hop_count: 1,
-            channel: channel.clone(),
-        };
-        
-        router.add_discovered_route(neighbor, path, quality).await;
-        info!(
-            node = %node_id,
-            neighbor = %neighbor,
-            channel = ?channel,
-            "Added direct route to neighbor"
-        );
-    }
-
-    let forwarder = Arc::new(SignalForwarder::new(node_id, router));
-    
-    let light_emitter = Arc::new(ConsoleEmitter::new(Channel::Light, format!("{}-Light", name)));
-    let ble_emitter = Arc::new(ConsoleEmitter::new(Channel::Ble, format!("{}-BLE", name)));
-    
-    forwarder.register_emitter(Channel::Light, light_emitter).await;
-    forwarder.register_emitter(Channel::Ble, ble_emitter).await;
-    
-    forwarder
-}
-
-async fn setup_multi_hop_chain() {
-    info!("=== Setting up 4-node multi-hop chain ===");
-    
-    let node1 = create_node_id(1);
-    let node2 = create_node_id(2);
-    let node3 = create_node_id(3);
-    let node4 = create_node_id(4);
-    
-    let forwarder1 = simulate_node(
-        node1,
-        "Node-1 (Source)",
-        vec![(node2, Channel::Light)],
-    ).await;
-    
-    let forwarder2 = simulate_node(
-        node2,
-        "Node-2 (Relay-1)",
-        vec![(node1, Channel::Light), (node3, Channel::Ble)],
-    ).await;
-    
-    let forwarder3 = simulate_node(
-        node3,
-        "Node-3 (Relay-2)",
-        vec![(node2, Channel::Ble), (node4, Channel::Light)],
-    ).await;
-    
-    let forwarder4 = simulate_node(
-        node4,
-        "Node-4 (Destination)",
-        vec![(node3, Channel::Light)],
-    ).await;
-    
-    info!("\n=== Testing multi-hop message forwarding ===\n");
-    
-    let message = ForwardedMessage::new(
-        node1,
-        node4,
-        b"Hello from Node 1 to Node 4 via multi-hop!".to_vec(),
-        5,
-    );
-    
-    info!(
-        source = %message.source,
-        destination = %message.destination,
-        payload_size = message.payload.len(),
-        max_hops = message.max_hops,
-        "Initiating multi-hop message transmission"
-    );
-    
-    info!("\nHop 1: Node-1 → Node-2 (via Light)");
-    let result = forwarder1.send_via_signal(node2, message.payload.clone(), Some(Channel::Light)).await;
-    match result {
-        Ok(_) => info!("  ✓ Signal sent successfully"),
-        Err(e) => info!("  ✗ Error: {:?}", e),
-    }
-    
-    info!("\nHop 2: Node-2 → Node-3 (via BLE)");
-    let result = forwarder2.send_via_signal(node3, message.payload.clone(), Some(Channel::Ble)).await;
-    match result {
-        Ok(_) => info!("  ✓ Signal sent successfully"),
-        Err(e) => info!("  ✗ Error: {:?}", e),
-    }
-    
-    info!("\nHop 3: Node-3 → Node-4 (via Light)");
-    let result = forwarder3.send_via_signal(node4, message.payload.clone(), Some(Channel::Light)).await;
-    match result {
-        Ok(_) => info!("  ✓ Signal sent successfully"),
-        Err(e) => info!("  ✗ Error: {:?}", e),
-    }
-    
-    info!("\n=== Message delivery complete ===\n");
-}
-
-async fn simulate_swarm_network() {
-    info!("\n=== Simulating swarm network with mesh topology ===");
-    
-    let node_a = create_node_id(10);
-    let node_b = create_node_id(11);
-    let node_c = create_node_id(12);
-    let node_d = create_node_id(13);
-    let node_e = create_node_id(14);
-    
-    let forwarder_a = simulate_node(
-        node_a,
-        "Node-A",
-        vec![(node_b, Channel::Ble), (node_c, Channel::Light)],
-    ).await;
-    
-    let forwarder_b = simulate_node(
-        node_b,
-        "Node-B",
-        vec![(node_a, Channel::Ble), (node_c, Channel::Ble), (node_d, Channel::Light)],
-    ).await;
-    
-    let forwarder_c = simulate_node(
-        node_c,
-        "Node-C",
-        vec![(node_a, Channel::Light), (node_b, Channel::Ble), (node_e, Channel::Ble)],
-    ).await;
-    
-    let _forwarder_d = simulate_node(
-        node_d,
-        "Node-D",
-        vec![(node_b, Channel::Light), (node_e, Channel::Light)],
-    ).await;
-    
-    let _forwarder_e = simulate_node(
-        node_e,
-        "Node-E",
-        vec![(node_c, Channel::Ble), (node_d, Channel::Light)],
-    ).await;
-    
-    info!("\n=== Broadcasting from Node-A to all neighbors ===\n");
-    
-    let _ = forwarder_a.announce_route_discovery(node_e, Channel::Ble).await;
-    
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    
-    info!("\n=== Testing alternative routes ===");
-    
-    info!("\nRoute 1: A → B → D → E");
-    let _ = forwarder_a.send_via_signal(node_b, b"via B".to_vec(), Some(Channel::Ble)).await;
-    let _ = forwarder_b.send_via_signal(node_d, b"via D".to_vec(), Some(Channel::Light)).await;
-    
-    info!("\nRoute 2: A → C → E");
-    let _ = forwarder_a.send_via_signal(node_c, b"via C".to_vec(), Some(Channel::Light)).await;
-    let _ = forwarder_c.send_via_signal(node_e, b"direct".to_vec(), Some(Channel::Ble)).await;
-    
-    info!("\n=== Swarm network simulation complete ===\n");
-}
-
-async fn demonstrate_route_quality() {
-    info!("\n=== Demonstrating route quality metrics ===");
-    
-    let node1 = create_node_id(20);
-    let node2 = create_node_id(21);
-    let node3 = create_node_id(22);
-    
-    let router = Arc::new(MultiHopRouter::new(node1));
-    
-    let high_quality = RouteQuality {
-        latency_us: 1000,
-        reliability: 0.99,
-        signal_strength: 0.95,
-        hop_count: 1,
-        channel: Channel::Ble,
-    };
-    
-    let low_quality = RouteQuality {
-        latency_us: 50_000,
-        reliability: 0.7,
-        signal_strength: 0.6,
-        hop_count: 3,
-        channel: Channel::Light,
-    };
-    
-    router.add_discovered_route(node2, vec![node1, node2], high_quality.clone()).await;
-    router.add_discovered_route(node2, vec![node1, node3, node2], low_quality.clone()).await;
-    
-    info!(
-        high_quality_score = high_quality.score(),
-        low_quality_score = low_quality.score(),
-        "Quality scores computed"
-    );
-    
-    match router.find_route(&node2).await {
-        Ok(route) => {
-            info!(
-                selected_route_hops = route.hop_count(),
-                route_score = route.quality.score(),
-                "Best route selected based on quality"
-            );
-        }
-        Err(e) => info!("Route lookup failed: {:?}", e),
-    }
-    
-    info!("\n=== Route quality demonstration complete ===\n");
-}
 
 #[tokio::main]
 async fn main() {
+    // Initialize tracing
     tracing_subscriber::fmt()
         .with_max_level(Level::INFO)
-        .with_target(false)
         .init();
 
-    info!("╔══════════════════════════════════════════════════════════╗");
-    info!("║     CortexOS Multi-Hop Communication Demonstration      ║");
-    info!("╚══════════════════════════════════════════════════════════╝\n");
+    info!("=== Multi-Hop Communication Demo ===");
+    info!("Demonstrating signal routing across multiple nodes in a mesh network");
 
-    setup_multi_hop_chain().await;
-    
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    
-    simulate_swarm_network().await;
-    
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    
-    demonstrate_route_quality().await;
+    // Create a 4-node network topology:
+    // NodeA -> NodeB -> NodeC -> NodeD
+    // NodeA wants to send a message to NodeD through B and C
 
-    info!("\n╔══════════════════════════════════════════════════════════╗");
-    info!("║          Multi-Hop Demo Complete                        ║");
-    info!("╚══════════════════════════════════════════════════════════╝");
+    let node_a = NodeId::generate();
+    let node_b = NodeId::generate();
+    let node_c = NodeId::generate();
+    let node_d = NodeId::generate();
+
+    info!("\n--- Network Topology ---");
+    info!("Node A: {:?}", node_a);
+    info!("Node B: {:?}", node_b);
+    info!("Node C: {:?}", node_c);
+    info!("Node D: {:?}", node_d);
+    info!("Path: A -> B -> C -> D");
+
+    // Create routers for each node
+    let router_a = Arc::new(MultiHopRouter::new(node_a));
+    let router_b = Arc::new(MultiHopRouter::new(node_b));
+    let router_c = Arc::new(MultiHopRouter::new(node_c));
+    let router_d = Arc::new(MultiHopRouter::new(node_d));
+
+    // Setup routes in each router
+    // Route from A to D through B and C
+    info!("\n--- Setting Up Routes ---");
+    
+    let route_a_to_d = Route::new(
+        node_a,
+        node_d,
+        vec![
+            RouteHop::new(node_b, Channel::Ble).with_latency(1000),
+            RouteHop::new(node_c, Channel::Light).with_latency(1500),
+            RouteHop::new(node_d, Channel::Audio).with_latency(2000),
+        ],
+    );
+    router_a.add_route(route_a_to_d.clone()).await;
+    info!("Added route at Node A: A -> B -> C -> D");
+
+    // Route from B to D through C
+    let route_b_to_d = Route::new(
+        node_b,
+        node_d,
+        vec![
+            RouteHop::new(node_c, Channel::Light).with_latency(1500),
+            RouteHop::new(node_d, Channel::Audio).with_latency(2000),
+        ],
+    );
+    router_b.add_route(route_b_to_d).await;
+    info!("Added route at Node B: B -> C -> D");
+
+    // Route from C to D
+    let route_c_to_d = Route::new(
+        node_c,
+        node_d,
+        vec![RouteHop::new(node_d, Channel::Audio).with_latency(2000)],
+    );
+    router_c.add_route(route_c_to_d).await;
+    info!("Added route at Node C: C -> D");
+
+    // Create a test signal to send
+    let codebook = Codebook::new();
+    let symbol = StandardSymbol::TaskRequest.to_symbol_id();
+    let pattern = codebook.encode(symbol).unwrap().clone();
+    let signal = Signal::new(symbol, pattern, Channel::Ble);
+
+    info!("\n--- Creating Message ---");
+    info!("Creating message with symbol: {:?}", StandardSymbol::TaskRequest);
+    
+    let mut message = MultiHopMessage::new(node_a, node_d, signal);
+    info!("Initial TTL: {}", message.ttl);
+    info!("Initial hop count: {}", message.hop_count);
+
+    // Simulate routing the message through the network
+    info!("\n--- Simulating Multi-Hop Routing ---");
+
+    // At Node A
+    info!("\n[Node A] Processing message");
+    let next_hop_a = router_a.route_message(&message).await.unwrap();
+    if let Some(hop) = next_hop_a {
+        message.forward(node_a).unwrap();
+        info!("[Node A] Forwarding to Node B via {:?}", hop.channel);
+        info!("[Node A] Updated hop count: {}, TTL: {}", message.hop_count, message.ttl);
+    }
+
+    // At Node B
+    info!("\n[Node B] Receiving message");
+    let next_hop_b = router_b.route_message(&message).await.unwrap();
+    if let Some(hop) = next_hop_b {
+        message.forward(node_b).unwrap();
+        info!("[Node B] Forwarding to Node C via {:?}", hop.channel);
+        info!("[Node B] Updated hop count: {}, TTL: {}", message.hop_count, message.ttl);
+    }
+
+    // At Node C
+    info!("\n[Node C] Receiving message");
+    let next_hop_c = router_c.route_message(&message).await.unwrap();
+    if let Some(hop) = next_hop_c {
+        message.forward(node_c).unwrap();
+        info!("[Node C] Forwarding to Node D via {:?}", hop.channel);
+        info!("[Node C] Updated hop count: {}, TTL: {}", message.hop_count, message.ttl);
+    }
+
+    // At Node D (destination)
+    info!("\n[Node D] Receiving message");
+    let next_hop_d = router_d.route_message(&message).await.ok();
+    if next_hop_d.is_none() {
+        info!("[Node D] Message reached destination!");
+        info!("[Node D] Total hops: {}", message.hop_count);
+        info!("[Node D] Route taken: {:?}", message.route_record);
+    }
+
+    // Demonstrate emitting signals on different channels
+    info!("\n--- Physical Signal Emission (Simulated) ---");
+    let ble_emitter = ConsoleEmitter::new(Channel::Ble, "Node-B");
+    let light_emitter = ConsoleEmitter::new(Channel::Light, "Node-C");
+    let audio_emitter = ConsoleEmitter::new(Channel::Audio, "Node-D");
+
+    let test_pattern = SignalPattern::new(vec![
+        Pulse::on(1000),
+        Pulse::off(500),
+        Pulse::on(1000),
+    ]);
+    
+    let test_signal = Signal::new(symbol, test_pattern, Channel::Ble);
+
+    info!("\nEmitting on BLE (Node B):");
+    ble_emitter.emit_signal(&test_signal, &codebook).await.unwrap();
+
+    let light_signal = Signal::new(symbol, test_signal.pattern.clone(), Channel::Light);
+    info!("\nEmitting on Light (Node C):");
+    light_emitter.emit_signal(&light_signal, &codebook).await.unwrap();
+
+    let audio_signal = Signal::new(symbol, test_signal.pattern.clone(), Channel::Audio);
+    info!("\nEmitting on Audio (Node D):");
+    audio_emitter.emit_signal(&audio_signal, &codebook).await.unwrap();
+
+    // Display route statistics
+    info!("\n--- Route Statistics ---");
+    info!("Total latency for A->D route: {:?}µs", route_a_to_d.total_latency_us());
+    info!("Route quality score: {:.2}", route_a_to_d.quality_score());
+    info!("Route hop count: {}", route_a_to_d.hop_count());
+
+    // Demonstrate route discovery
+    info!("\n--- Route Discovery ---");
+    let discovery_request = router_a.discover_route(node_d).await;
+    info!("Started route discovery from {:?} to {:?}", discovery_request.source, discovery_request.destination);
+    info!("Discovery request ID: {:?}", discovery_request.id);
+
+    // Show router states
+    info!("\n--- Router States ---");
+    info!("Router A: {} routes", router_a.route_count().await);
+    info!("Router B: {} routes", router_b.route_count().await);
+    info!("Router C: {} routes", router_c.route_count().await);
+    info!("Router D: {} routes", router_d.route_count().await);
+
+    info!("\n=== Demo Complete ===");
 }

@@ -31,5 +31,8 @@ pub use learning::{CommunicationOutcome, LearningConfig, LearningStats, Learning
 pub use negotiation::{ChannelNegotiator, ChannelQuality};
 pub use receiver::{MockReceiver, Receiver};
 pub use recognition::{MatchConfidence, RecognitionConfig, RecognitionEngine, RecognizedSignal, SignalTemplate};
-pub use routing::{MultiHopRouter, Route, RouteQuality, RoutingTable};
+pub use routing::{
+    MultiHopMessage, MultiHopRouter, Route, RouteDiscoveryReply, RouteDiscoveryRequest, RouteHop,
+    RouteId, RoutingTable,
+};
 pub use signal::{Channel, Pulse, Signal, SignalPattern};

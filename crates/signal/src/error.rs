@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::Channel;
+use crate::signal::Channel;
 
 /// Errors that can occur in the Subnet signal layer.
 ///
@@ -104,6 +104,12 @@ pub enum DecodeError {
 
 /// Convenience Result type for decoding operations
 pub type DecodeResult<T> = std::result::Result<T, DecodeError>;
+
+impl From<EmitError> for DecodeError {
+    fn from(e: EmitError) -> Self {
+        DecodeError::Signal(SignalError::CodecError(e.to_string()))
+    }
+}
 
 /// Errors during channel negotiation between peers.
 ///

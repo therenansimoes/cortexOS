@@ -23,8 +23,17 @@ pub enum SkillError {
     #[error("Serialization error: {0}")]
     Serialization(String),
 
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
     #[error("Network error: {0}")]
     NetworkError(String),
+
+    #[error("Task delegation failed: {0}")]
+    DelegationFailed(String),
+
+    #[error("Task queue is full")]
+    QueueFull,
 
     #[error("Reputation error: {0}")]
     ReputationError(#[from] cortex_reputation::ReputationError),

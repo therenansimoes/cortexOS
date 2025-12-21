@@ -712,6 +712,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bincode",
+ "blake3",
  "cortex-core",
  "cortex-grid",
  "cortex-reputation",

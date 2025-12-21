@@ -35,6 +35,9 @@ pub enum GridError {
     #[error("discovery error: {0}")]
     DiscoveryError(String),
 
+    #[error("invalid multicast address: {0}")]
+    InvalidMulticastAddr(String),
+
     #[error("event bus error: {0}")]
     EventBusError(String),
 
@@ -46,6 +49,9 @@ pub enum GridError {
 
     #[error("channel closed")]
     ChannelClosed,
+
+    #[error("message sender not initialized")]
+    MessageSenderNotInitialized,
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),

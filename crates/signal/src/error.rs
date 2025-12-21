@@ -17,6 +17,8 @@ pub enum SignalError {
     CodecError(String),
 }
 
+pub type SignalResult<T> = std::result::Result<T, SignalError>;
+
 #[derive(Debug, Error)]
 pub enum EmitError {
     #[error("channel unavailable: {0:?}")]
@@ -35,6 +37,8 @@ pub enum EmitError {
     Signal(#[from] SignalError),
 }
 
+pub type EmitResult<T> = std::result::Result<T, EmitError>;
+
 #[derive(Debug, Error)]
 pub enum ReceiveError {
     #[error("channel unavailable: {0:?}")]
@@ -49,6 +53,8 @@ pub enum ReceiveError {
     #[error("noise detected, signal unclear")]
     NoiseError,
 }
+
+pub type ReceiveResult<T> = std::result::Result<T, ReceiveError>;
 
 #[derive(Debug, Error)]
 pub enum DecodeError {
@@ -65,6 +71,8 @@ pub enum DecodeError {
     Signal(#[from] SignalError),
 }
 
+pub type DecodeResult<T> = std::result::Result<T, DecodeError>;
+
 #[derive(Debug, Error)]
 pub enum NegotiationError {
     #[error("no channels available")]
@@ -79,6 +87,8 @@ pub enum NegotiationError {
     #[error("quality below threshold: snr={snr}, min={min}")]
     QualityBelowThreshold { snr: f32, min: f32 },
 }
+
+pub type NegotiationResult<T> = std::result::Result<T, NegotiationError>;
 
 #[derive(Debug, Error)]
 pub enum RoutingError {
@@ -97,3 +107,5 @@ pub enum RoutingError {
     #[error("routing loop detected")]
     LoopDetected,
 }
+
+pub type RoutingResult<T> = std::result::Result<T, RoutingError>;

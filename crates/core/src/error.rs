@@ -31,6 +31,9 @@ pub enum CoreError {
 
     #[error("Pattern match error: {0}")]
     PatternError(String),
+
+    #[error("Invalid hash slice length: expected 16 bytes, got {0}")]
+    InvalidHashLength(usize),
 }
 
 pub type Result<T> = std::result::Result<T, CoreError>;

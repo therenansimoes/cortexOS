@@ -30,6 +30,8 @@ pub enum SensorError {
     Unsupported(String),
 }
 
+pub type Result<T> = std::result::Result<T, SensorError>;
+
 #[derive(Debug, Error)]
 pub enum BleError {
     #[error("adapter not available")]
@@ -50,3 +52,5 @@ pub enum BleError {
     #[error("hardware error: {0}")]
     Hardware(String),
 }
+
+pub type BleResult<T> = std::result::Result<T, BleError>;

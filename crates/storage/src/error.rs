@@ -26,3 +26,5 @@ pub enum StoreError {
     #[error("Privacy violation: {0}")]
     PrivacyViolation(String),
 }
+
+pub type Result<T> = std::result::Result<T, StoreError>;

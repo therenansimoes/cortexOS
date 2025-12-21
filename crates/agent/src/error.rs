@@ -41,6 +41,8 @@ pub enum AgentError {
     Internal(String),
 }
 
+pub type Result<T> = std::result::Result<T, AgentError>;
+
 #[derive(Debug, Error)]
 pub enum IntentionError {
     #[error("Intention not found: {0}")]
@@ -55,3 +57,5 @@ pub enum IntentionError {
     #[error("Intention already completed: {0}")]
     AlreadyCompleted(IntentionId),
 }
+
+pub type IntentionResult<T> = std::result::Result<T, IntentionError>;

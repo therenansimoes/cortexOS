@@ -13,7 +13,10 @@ impl EventId {
 
     pub fn from_content(content: &[u8]) -> Self {
         let hash = blake3::hash(content);
-        let bytes: [u8; 16] = hash.as_bytes()[..16].try_into().unwrap();
+        // This is safe because blake3 always returns 32 bytes, and we're taking the first 16
+        let bytes: [u8; 16] = hash.as_bytes()[..16]
+            .try_into()
+            .expect("blake3 hash slice is always 32 bytes");
         Self(Uuid::from_bytes(bytes))
     }
 }

@@ -10,6 +10,8 @@ pub enum LexError {
     InvalidNumber(usize),
 }
 
+pub type LexResult<T> = std::result::Result<T, LexError>;
+
 #[derive(Debug, Error)]
 pub enum ParseError {
     #[error("Unexpected token: expected {expected}, found {found}")]
@@ -21,6 +23,8 @@ pub enum ParseError {
     #[error("Lexer error: {0}")]
     LexError(#[from] LexError),
 }
+
+pub type ParseResult<T> = std::result::Result<T, ParseError>;
 
 #[derive(Debug, Error)]
 pub enum VMError {
@@ -34,6 +38,8 @@ pub enum VMError {
     RuntimeError(String),
 }
 
+pub type VMResult<T> = std::result::Result<T, VMError>;
+
 #[derive(Debug, Error)]
 pub enum CompileError {
     #[error("Compilation error: {0}")]
@@ -41,3 +47,5 @@ pub enum CompileError {
     #[error("Unsupported construct: {0}")]
     UnsupportedConstruct(String),
 }
+
+pub type CompileResult<T> = std::result::Result<T, CompileError>;

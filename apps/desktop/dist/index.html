@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CortexOS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0d0d12;
+            --bg-card: #15151d;
+            --bg-sidebar: #111118;
+            --bg-input: #1a1a24;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --green: #10b981;
+            --orange: #f59e0b;
+            --red: #ef4444;
+            --text: #ffffff;
+            --text-dim: rgba(255,255,255,0.5);
+            --border: rgba(255,255,255,0.08);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .app {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 220px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px 0;
+        }
+        
+        .logo {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 10px;
+        }
+        
+        .logo h1 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .logo .version {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+        
+        .nav { flex: 1; }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+        
+        .nav-item:hover { background: rgba(255,255,255,0.03); color: var(--text); }
+        .nav-item.active { background: rgba(99,102,241,0.1); color: var(--accent); border-left: 2px solid var(--accent); }
+        .nav-item .icon { font-size: 1.1rem; }
+        .nav-item .badge { margin-left: auto; background: var(--accent); color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; }
+        
+        .status-indicator {
+            padding: 15px 20px;
+            border-top: 1px solid var(--border);
+        }
+        
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); }
+        .status-dot.offline { background: var(--red); }
+        
+        .status-text { font-size: 0.75rem; color: var(--text-dim); }
+        
+        /* Main content */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .header {
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header h2 { font-size: 1.2rem; font-weight: 600; }
+        
+        .toggle-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-card);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid var(--border);
+        }
+        
+        .toggle-btn.active { background: rgba(16,185,129,0.1); border-color: var(--green); }
+        .toggle-btn .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-dim); }
+        .toggle-btn.active .dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+        .toggle-btn span { font-size: 0.8rem; }
+        
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 25px 30px;
+        }
+        
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+        
+        .stat-card .label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+        .stat-card .value { font-size: 1.8rem; font-weight: 700; margin-top: 8px; color: var(--accent-light); }
+        .stat-card .sub { font-size: 0.7rem; color: var(--text-dim); margin-top: 4px; }
+        
+        .section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+        
+        .section-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-content { padding: 15px 20px; }
+        
+        /* Peer list */
+        .peer-list { max-height: 200px; overflow-y: auto; }
+        
+        .peer-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.02);
+        }
+        
+        .peer-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #a855f7); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.8rem; }
+        .peer-info { flex: 1; }
+        .peer-name { font-size: 0.85rem; font-weight: 500; }
+        .peer-addr { font-size: 0.7rem; color: var(--text-dim); }
+        .peer-status { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+        
+        /* Chat */
+        .chat-container { display: flex; flex-direction: column; height: calc(100vh - 180px); }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .chat-msg {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 0.85rem;
+        }
+        
+        .chat-msg.mine { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 4px; }
+        .chat-msg.theirs { align-self: flex-start; background: var(--bg-input); border-bottom-left-radius: 4px; }
+        .chat-msg.system { align-self: center; background: rgba(245,158,11,0.1); color: var(--orange); font-size: 0.75rem; border-radius: 8px; }
+        
+        .chat-sender { font-size: 0.7rem; color: rgba(255,255,255,0.7); margin-bottom: 4px; }
+        .chat-time { font-size: 0.65rem; color: rgba(255,255,255,0.4); margin-top: 4px; }
+        
+        .chat-input-area {
+            padding: 15px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-input {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.85rem;
+        }
+        
+        .chat-input:focus { outline: none; border-color: var(--accent); }
+        
+        .chat-send {
+            background: var(--accent);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 24px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .chat-send:hover { background: var(--accent-light); }
+        
+        /* Queue */
+        .queue-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px 15px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .queue-icon { font-size: 1.2rem; }
+        .queue-info { flex: 1; }
+        .queue-title { font-size: 0.85rem; font-weight: 500; }
+        .queue-meta { font-size: 0.7rem; color: var(--text-dim); }
+        
+        .queue-progress {
+            width: 100px;
+            height: 4px;
+            background: var(--bg-input);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .queue-progress-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+        
+        /* Config */
+        .config-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .config-row:last-child { border-bottom: none; }
+        .config-label { font-size: 0.85rem; }
+        .config-desc { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+        
+        .config-input {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.85rem;
+            width: 150px;
+        }
+        
+        /* Hidden pages */
+        .page { display: none; }
+        .page.active { display: block; }
+        
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-dim);
+        }
+        
+        .empty-state .icon { font-size: 3rem; margin-bottom: 15px; opacity: 0.3; }
+        .empty-state p { font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>🧠 CortexOS</h1>
+                <div class="version">v0.1.0 - Distributed AI</div>
+            </div>
+            
+            <nav class="nav">
+                <div class="nav-item active" data-page="dashboard">
+                    <span class="icon">📊</span>
+                    <span>Dashboard</span>
+                </div>
+                <div class="nav-item" data-page="peers">
+                    <span class="icon">🌐</span>
+                    <span>Peers</span>
+                    <span class="badge" id="peerCount">0</span>
+                </div>
+                <div class="nav-item" data-page="chat">
+                    <span class="icon">💬</span>
+                    <span>Chat</span>
+                </div>
+                <div class="nav-item" data-page="queue">
+                    <span class="icon">📥</span>
+                    <span>Queue</span>
+                    <span class="badge" id="queueCount">0</span>
+                </div>
+                <div class="nav-item" data-page="config">
+                    <span class="icon">⚙️</span>
+                    <span>Settings</span>
+                </div>
+            </nav>
+            
+            <div class="status-indicator">
+                <span class="status-dot online" id="statusDot"></span>
+                <span class="status-text" id="statusText">Contributing</span>
+            </div>
+        </aside>
+        
+        <main class="main">
+            <header class="header">
+                <h2 id="pageTitle">Dashboard</h2>
+                <div class="toggle-btn active" id="contributeToggle" onclick="toggleContribute()">
+                    <div class="dot"></div>
+                    <span>Contributing</span>
+                </div>
+            </header>
+            
+            <div class="content">
+                <!-- Dashboard -->
+                <div class="page active" id="page-dashboard">
+                    <div class="card-grid">
+                        <div class="stat-card">
+                            <div class="label">Capacity Score</div>
+                            <div class="value" id="capacityScore">0</div>
+                            <div class="sub">out of 100</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="label">Tasks Done</div>
+                            <div class="value" id="tasksDone">0</div>
+                            <div class="sub">lifetime</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="label">Data Processed</div>
+                            <div class="value" id="dataProcessed">0</div>
+                            <div class="sub">MB</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="label">Connected Peers</div>
+                            <div class="value" id="connectedPeers">0</div>
+                            <div class="sub">online</div>
+                        </div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-header">💻 Device Info</div>
+                        <div class="section-content">
+                            <div class="config-row">
+                                <div><div class="config-label">CPU</div></div>
+                                <div id="cpuInfo">-</div>
+                            </div>
+                            <div class="config-row">
+                                <div><div class="config-label">RAM</div></div>
+                                <div id="ramInfo">-</div>
+                            </div>
+                            <div class="config-row">
+                                <div><div class="config-label">GPU</div></div>
+                                <div id="gpuInfo">-</div>
+                            </div>
+                            <div class="config-row">
+                                <div><div class="config-label">Max Layers</div></div>
+                                <div id="maxLayers">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Peers -->
+                <div class="page" id="page-peers">
+                    <div class="section">
+                        <div class="section-header">🌐 Connected Peers</div>
+                        <div class="section-content">
+                            <div class="peer-list" id="peerList">
+                                <div class="empty-state">
+                                    <div class="icon">🔍</div>
+                                    <p>Searching for peers...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chat -->
+                <div class="page" id="page-chat">
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chatMessages"></div>
+                        <div class="chat-input-area">
+                            <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." onkeypress="handleChatKey(event)">
+                            <button class="chat-send" onclick="sendChat()">Send</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Queue -->
+                <div class="page" id="page-queue">
+                    <div class="section">
+                        <div class="section-header">📥 Inbound Tasks</div>
+                        <div class="section-content" id="inboundQueue">
+                            <div class="empty-state">
+                                <div class="icon">📭</div>
+                                <p>No incoming tasks</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-header">📤 Outbound Tasks</div>
+                        <div class="section-content" id="outboundQueue">
+                            <div class="empty-state">
+                                <div class="icon">📭</div>
+                                <p>No outgoing tasks</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Config -->
+                <div class="page" id="page-config">
+                    <div class="section">
+                        <div class="section-header">⚙️ Settings</div>
+                        <div class="section-content">
+                            <div class="config-row">
+                                <div>
+                                    <div class="config-label">Display Name</div>
+                                    <div class="config-desc">Your name in the network</div>
+                                </div>
+                                <input type="text" class="config-input" id="configName" placeholder="Anonymous" onchange="saveConfig()">
+                            </div>
+                            <div class="config-row">
+                                <div>
+                                    <div class="config-label">P2P Port</div>
+                                    <div class="config-desc">Port for peer discovery</div>
+                                </div>
+                                <input type="number" class="config-input" id="configP2PPort" value="7654" onchange="saveConfig()">
+                            </div>
+                            <div class="config-row">
+                                <div>
+                                    <div class="config-label">Max CPU Usage</div>
+                                    <div class="config-desc">Limit CPU when contributing</div>
+                                </div>
+                                <input type="number" class="config-input" id="configMaxCPU" value="80" max="100" onchange="saveConfig()">
+                            </div>
+                            <div class="config-row">
+                                <div>
+                                    <div class="config-label">Max RAM (MB)</div>
+                                    <div class="config-desc">Limit RAM for tasks</div>
+                                </div>
+                                <input type="number" class="config-input" id="configMaxRAM" value="4096" onchange="saveConfig()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        const { invoke } = window.__TAURI__.core;
+        
+        let isContributing = true;
+        
+        // Navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const page = item.dataset.page;
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                item.classList.add('active');
+                document.getElementById('page-' + page).classList.add('active');
+                document.getElementById('pageTitle').textContent = item.querySelector('span:last-child').textContent;
+            });
+        });
+        
+        // Toggle contribute
+        async function toggleContribute() {
+            isContributing = !isContributing;
+            await invoke('toggle_contribute', { enabled: isContributing });
+            updateContributeUI();
+        }
+        
+        function updateContributeUI() {
+            const btn = document.getElementById('contributeToggle');
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            
+            if (isContributing) {
+                btn.classList.add('active');
+                btn.querySelector('span').textContent = 'Contributing';
+                dot.classList.add('online');
+                dot.classList.remove('offline');
+                text.textContent = 'Contributing';
+            } else {
+                btn.classList.remove('active');
+                btn.querySelector('span').textContent = 'Paused';
+                dot.classList.remove('online');
+                dot.classList.add('offline');
+                text.textContent = 'Paused';
+            }
+        }
+        
+        // Fetch status
+        async function fetchStatus() {
+            try {
+                const status = await invoke('get_status');
+                
+                isContributing = status.is_contributing;
+                updateContributeUI();
+                
+                document.getElementById('capacityScore').textContent = status.device.capacity_score;
+                document.getElementById('tasksDone').textContent = status.stats.tasks_processed;
+                document.getElementById('dataProcessed').textContent = Math.round(status.stats.bytes_received / 1024 / 1024 * 10) / 10;
+                document.getElementById('connectedPeers').textContent = status.stats.peers_count;
+                document.getElementById('peerCount').textContent = status.stats.peers_count;
+                document.getElementById('queueCount').textContent = status.stats.inbound_queue + status.stats.outbound_queue;
+                
+                document.getElementById('cpuInfo').textContent = status.device.cpu_model + ' (' + status.device.cpu_cores + ' cores)';
+                document.getElementById('ramInfo').textContent = Math.round(status.device.ram_available_mb / 1024 * 10) / 10 + ' / ' + Math.round(status.device.ram_total_mb / 1024 * 10) / 10 + ' GB';
+                document.getElementById('gpuInfo').textContent = status.device.gpu || 'None';
+                document.getElementById('maxLayers').textContent = status.device.max_layers;
+            } catch (e) {
+                console.error('Status error:', e);
+            }
+        }
+        
+        // Fetch peers
+        async function fetchPeers() {
+            try {
+                const peers = await invoke('get_peers');
+                const list = document.getElementById('peerList');
+                
+                if (peers.length === 0) {
+                    list.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>Searching for peers...</p></div>';
+                } else {
+                    list.innerHTML = peers.map(p => `
+                        <div class="peer-item">
+                            <div class="peer-avatar">${p.node_id.substring(0, 2).toUpperCase()}</div>
+                            <div class="peer-info">
+                                <div class="peer-name">${p.node_id.substring(0, 12)}...</div>
+                                <div class="peer-addr">${p.address}</div>
+                            </div>
+                            <div class="peer-status"></div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Peers error:', e);
+            }
+        }
+        
+        // Fetch chat
+        async function fetchChat() {
+            try {
+                const messages = await invoke('get_chat');
+                const container = document.getElementById('chatMessages');
+                
+                container.innerHTML = messages.map(m => {
+                    if (m.is_system) {
+                        return `<div class="chat-msg system">${m.content}</div>`;
+                    }
+                    return `
+                        <div class="chat-msg ${m.is_mine ? 'mine' : 'theirs'}">
+                            ${!m.is_mine ? `<div class="chat-sender">${m.from_name}</div>` : ''}
+                            <div>${m.content}</div>
+                            <div class="chat-time">${new Date(m.timestamp).toLocaleTimeString()}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+                container.scrollTop = container.scrollHeight;
+            } catch (e) {
+                console.error('Chat error:', e);
+            }
+        }
+        
+        // Send chat
+        async function sendChat() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            await invoke('send_chat', { message });
+            input.value = '';
+            fetchChat();
+        }
+        
+        function handleChatKey(e) {
+            if (e.key === 'Enter') sendChat();
+        }
+        
+        // Fetch queue
+        async function fetchQueue() {
+            try {
+                const queue = await invoke('get_queue');
+                
+                const inbound = document.getElementById('inboundQueue');
+                const outbound = document.getElementById('outboundQueue');
+                
+                if (queue.inbound.length === 0) {
+                    inbound.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>No incoming tasks</p></div>';
+                } else {
+                    inbound.innerHTML = queue.inbound.map(t => `
+                        <div class="queue-item">
+                            <div class="queue-icon">📥</div>
+                            <div class="queue-info">
+                                <div class="queue-title">${t.task_type}</div>
+                                <div class="queue-meta">${t.from_node.substring(0, 8)}... • ${Math.round(t.size_bytes / 1024)} KB</div>
+                            </div>
+                            <div class="queue-progress"><div class="queue-progress-bar" style="width: ${t.progress}%"></div></div>
+                        </div>
+                    `).join('');
+                }
+                
+                if (queue.outbound.length === 0) {
+                    outbound.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>No outgoing tasks</p></div>';
+                } else {
+                    outbound.innerHTML = queue.outbound.map(t => `
+                        <div class="queue-item">
+                            <div class="queue-icon">📤</div>
+                            <div class="queue-info">
+                                <div class="queue-title">${t.task_type}</div>
+                                <div class="queue-meta">${Math.round(t.size_bytes / 1024)} KB</div>
+                            </div>
+                            <div class="queue-progress"><div class="queue-progress-bar" style="width: ${t.progress}%"></div></div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Queue error:', e);
+            }
+        }
+        
+        // Save config
+        async function saveConfig() {
+            const config = {
+                display_name: document.getElementById('configName').value || 'Anonymous',
+                p2p_port: parseInt(document.getElementById('configP2PPort').value) || 7654,
+                max_cpu_percent: parseInt(document.getElementById('configMaxCPU').value) || 80,
+                max_ram_mb: parseInt(document.getElementById('configMaxRAM').value) || 4096,
+            };
+            
+            await invoke('set_config', { config });
+            await invoke('set_name', { name: config.display_name });
+        }
+        
+        // Load config
+        async function loadConfig() {
+            try {
+                const config = await invoke('get_config');
+                document.getElementById('configName').value = config.display_name || '';
+                document.getElementById('configP2PPort').value = config.p2p_port || 7654;
+                document.getElementById('configMaxCPU').value = config.max_cpu_percent || 80;
+                document.getElementById('configMaxRAM').value = config.max_ram_mb || 4096;
+            } catch (e) {
+                console.error('Config error:', e);
+            }
+        }
+        
+        // Initial load
+        fetchStatus();
+        fetchPeers();
+        fetchChat();
+        fetchQueue();
+        loadConfig();
+        
+        // Refresh periodically
+        setInterval(fetchStatus, 2000);
+        setInterval(fetchPeers, 3000);
+        setInterval(fetchChat, 1000);
+        setInterval(fetchQueue, 2000);
+    </script>
+</body>
+</html>
+

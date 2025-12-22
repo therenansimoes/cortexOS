@@ -1,0 +1,31 @@
+[package]
+name = "cortex-app"
+version = "0.1.0"
+edition = "2021"
+description = "CortexOS Desktop App - Distributed AI P2P Client"
+
+[[bin]]
+name = "cortex-app"
+path = "src/main.rs"
+
+[dependencies]
+# GUI
+iced = { version = "0.12", features = ["tokio"] }
+
+# CortexOS
+cortex-core = { path = "../../crates/core" }
+cortex-grid = { path = "../../crates/grid" }
+
+# Async
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "net", "io-util"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Utils
+blake3 = "1.5"
+rand = "0.8"
+chrono = "0.4"
+tracing = "0.1"
+tracing-subscriber = "0.3"

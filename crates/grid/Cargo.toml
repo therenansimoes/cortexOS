@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 cortex-core = { path = "../core" }
 serde = { workspace = true }
+serde_json = { workspace = true }
 serde-big-array = "0.5"
 bincode = { workspace = true }
 tokio = { workspace = true }
@@ -21,6 +22,7 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 bytes = { workspace = true }
 zeroize = { workspace = true }
+uuid = { workspace = true }
 socket2 = { version = "0.5", features = ["all"] }
 
 [[bench]]

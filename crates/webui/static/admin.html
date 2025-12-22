@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CortexOS · Global Swarm</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: rgba(15, 15, 25, 0.9);
+            --accent-cyan: #00f5ff;
+            --accent-purple: #bf00ff;
+            --accent-green: #00ff88;
+            --accent-orange: #ff6b00;
+            --text-dim: rgba(255,255,255,0.5);
+            --grid-color: rgba(0, 245, 255, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Mono', monospace;
+            background: var(--bg-dark);
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated grid background */
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        /* Glow orbs */
+        .glow-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .orb-1 {
+            width: 400px;
+            height: 400px;
+            background: var(--accent-cyan);
+            top: -100px;
+            right: -100px;
+            animation: float1 15s ease-in-out infinite;
+        }
+
+        .orb-2 {
+            width: 300px;
+            height: 300px;
+            background: var(--accent-purple);
+            bottom: -50px;
+            left: -50px;
+            animation: float2 20s ease-in-out infinite;
+        }
+
+        .orb-3 {
+            width: 200px;
+            height: 200px;
+            background: var(--accent-green);
+            top: 50%;
+            left: 50%;
+            animation: float3 25s ease-in-out infinite;
+        }
+
+        @keyframes float1 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-50px, 50px); }
+        }
+
+        @keyframes float2 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(50px, -50px); }
+        }
+
+        @keyframes float3 {
+            0%, 100% { transform: translate(-50%, -50%); }
+            50% { transform: translate(-30%, -70%); }
+        }
+
+        /* Header */
+        header {
+            position: relative;
+            z-index: 10;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(0, 245, 255, 0.5);
+        }
+
+        .logo-subtitle {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 30px;
+        }
+
+        .header-stat {
+            text-align: right;
+        }
+
+        .header-stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            text-shadow: 0 0 20px rgba(0, 245, 255, 0.5);
+        }
+
+        .header-stat-label {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* Main content */
+        main {
+            position: relative;
+            z-index: 10;
+            padding: 30px 40px;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 30px;
+            max-height: calc(100vh - 100px);
+        }
+
+        /* Network visualization */
+        .network-viz {
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .network-header {
+            padding: 20px 25px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .network-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            letter-spacing: 2px;
+        }
+
+        .network-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: var(--accent-green);
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.5); }
+        }
+
+        #networkCanvas {
+            width: 100%;
+            height: calc(100% - 70px);
+            display: block;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+        }
+
+        .card-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+        }
+
+        /* Power meter */
+        .power-meter {
+            text-align: center;
+        }
+
+        .power-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+        }
+
+        .power-unit {
+            font-size: 1.2rem;
+            color: var(--text-dim);
+            margin-left: 5px;
+        }
+
+        .power-bar {
+            margin-top: 15px;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .power-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
+            border-radius: 4px;
+            transition: width 0.5s ease;
+            box-shadow: 0 0 20px rgba(0, 245, 255, 0.5);
+        }
+
+        .power-label {
+            margin-top: 10px;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255,255,255,0.03);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+        }
+
+        .stat-item.cyan .stat-value { color: var(--accent-cyan); }
+        .stat-item.purple .stat-value { color: var(--accent-purple); }
+        .stat-item.green .stat-value { color: var(--accent-green); }
+        .stat-item.orange .stat-value { color: var(--accent-orange); }
+
+        /* Node list */
+        .node-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .node-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .node-list::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+
+        .node-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.2s ease;
+        }
+
+        .node-item:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: var(--accent-cyan);
+        }
+
+        .node-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+
+        .node-avatar.head { background: linear-gradient(135deg, var(--accent-cyan), #0088ff); }
+        .node-avatar.middle { background: linear-gradient(135deg, var(--accent-purple), #8800ff); }
+        .node-avatar.tail { background: linear-gradient(135deg, var(--accent-green), #00cc66); }
+
+        .node-info {
+            flex: 1;
+        }
+
+        .node-id {
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-family: 'Space Mono', monospace;
+        }
+
+        .node-role {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .node-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+        }
+
+        /* Activity feed */
+        .activity-feed {
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .activity-item {
+            display: flex;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.75rem;
+        }
+
+        .activity-time {
+            color: var(--text-dim);
+            min-width: 50px;
+        }
+
+        .activity-text {
+            flex: 1;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .activity-icon {
+            font-size: 1rem;
+        }
+
+        /* Footer link */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.8rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--accent-cyan);
+        }
+
+        /* Logs Section */
+        .logs-section {
+            position: relative;
+            z-index: 1;
+            margin: 0 40px 40px;
+            background: var(--bg-card);
+            border: 1px solid rgba(0, 245, 255, 0.2);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .logs-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .terminal-icon {
+            font-size: 1.2rem;
+        }
+
+        .log-count {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            background: rgba(255,255,255,0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .logs-controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .filter-label input {
+            cursor: pointer;
+        }
+
+        .btn-clear, .btn-refresh {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-family: 'Space Mono', monospace;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-clear:hover {
+            background: rgba(255, 100, 100, 0.3);
+            border-color: rgba(255, 100, 100, 0.5);
+        }
+
+        .btn-refresh:hover {
+            background: var(--accent-cyan);
+            color: black;
+        }
+
+        .logs-container {
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.75rem;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 16px;
+        }
+
+        .logs-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .logs-container::-webkit-scrollbar-thumb {
+            background: rgba(0, 245, 255, 0.3);
+            border-radius: 4px;
+        }
+
+        .logs-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .log-placeholder {
+            color: var(--text-dim);
+            text-align: center;
+            padding: 40px;
+        }
+
+        .log-entry {
+            display: grid;
+            grid-template-columns: 80px 100px 100px auto;
+            gap: 12px;
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 6px;
+            border-left: 3px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .log-entry:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .log-entry.discovery { border-left-color: var(--accent-purple); }
+        .log-entry.task-sent { border-left-color: var(--accent-cyan); }
+        .log-entry.task-received { border-left-color: #00ccff; }
+        .log-entry.task-completed { border-left-color: var(--accent-green); }
+        .log-entry.task-failed { border-left-color: #ff4444; }
+        .log-entry.pipeline { border-left-color: var(--accent-orange); }
+        .log-entry.network-error { border-left-color: #ff6666; }
+        .log-entry.info { border-left-color: #888; }
+        .log-entry.debug { border-left-color: #666; }
+
+        .log-time {
+            color: var(--text-dim);
+        }
+
+        .log-type {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.65rem;
+        }
+
+        .log-type.discovery { color: var(--accent-purple); }
+        .log-type.task-sent { color: var(--accent-cyan); }
+        .log-type.task-received { color: #00ccff; }
+        .log-type.task-completed { color: var(--accent-green); }
+        .log-type.task-failed { color: #ff4444; }
+        .log-type.pipeline { color: var(--accent-orange); }
+        .log-type.network-error { color: #ff6666; }
+        .log-type.info { color: #888; }
+        .log-type.debug { color: #666; }
+
+        .log-source {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.7rem;
+        }
+
+        .log-message {
+            color: rgba(255,255,255,0.9);
+            word-break: break-word;
+        }
+
+        .log-details {
+            grid-column: 1 / -1;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 4px;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.6);
+            white-space: pre-wrap;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .log-duration {
+            color: var(--accent-green);
+            font-size: 0.65rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+            
+            .network-viz {
+                height: 400px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            header {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+
+            .header-stats {
+                width: 100%;
+                justify-content: center;
+            }
+
+            main {
+                padding: 20px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+    <div class="glow-orb orb-3"></div>
+
+    <header>
+        <div>
+            <div class="logo">CORTEX<span style="color: var(--accent-purple)">OS</span></div>
+            <div class="logo-subtitle">Global AI Swarm Network</div>
+        </div>
+        <div class="header-stats">
+            <div class="header-stat">
+                <div class="header-stat-value" id="totalNodes">0</div>
+                <div class="header-stat-label">Active Nodes</div>
+            </div>
+            <div class="header-stat">
+                <div class="header-stat-value" id="totalPower">0<span style="font-size: 0.8rem">B</span></div>
+                <div class="header-stat-label">Compute Power</div>
+            </div>
+            <div class="header-stat">
+                <div class="header-stat-value" id="tasksTotal">0</div>
+                <div class="header-stat-label">Tasks Processed</div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="network-viz">
+            <div class="network-header">
+                <div class="network-title">NETWORK TOPOLOGY</div>
+                <div class="network-status">
+                    <div class="pulse-dot"></div>
+                    <span>LIVE</span>
+                </div>
+            </div>
+            <canvas id="networkCanvas"></canvas>
+        </div>
+
+        <div class="sidebar">
+            <div class="card power-meter">
+                <div class="card-title">Collective Intelligence</div>
+                <div class="power-value"><span id="powerValue">0</span><span class="power-unit">B</span></div>
+                <div class="power-bar">
+                    <div class="power-fill" id="powerFill" style="width: 0%"></div>
+                </div>
+                <div class="power-label">Equivalent to <span id="equivalentModel">-</span></div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Network Stats</div>
+                <div class="stats-grid">
+                    <div class="stat-item cyan">
+                        <div class="stat-value" id="computeNodes">0</div>
+                        <div class="stat-label">Compute Nodes</div>
+                    </div>
+                    <div class="stat-item purple">
+                        <div class="stat-value" id="pipelineLayers">0</div>
+                        <div class="stat-label">Total Layers</div>
+                    </div>
+                    <div class="stat-item green">
+                        <div class="stat-value" id="avgLatency">-</div>
+                        <div class="stat-label">Avg Latency</div>
+                    </div>
+                    <div class="stat-item orange">
+                        <div class="stat-value" id="throughput">0</div>
+                        <div class="stat-label">Tokens/sec</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Pipeline Nodes</div>
+                <div class="node-list" id="nodeList">
+                    <div style="color: var(--text-dim); text-align: center; padding: 20px;">
+                        Discovering nodes...
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Activity</div>
+                <div class="activity-feed" id="activityFeed">
+                    <div class="activity-item">
+                        <span class="activity-icon">🚀</span>
+                        <span class="activity-time">now</span>
+                        <span class="activity-text">Admin dashboard initialized</span>
+                    </div>
+                </div>
+            </div>
+
+            <a href="/" class="back-link">
+                ← Back to Chat Interface
+            </a>
+        </div>
+    </main>
+
+    <!-- Full-width Logs Section -->
+    <section class="logs-section">
+        <div class="logs-header">
+            <div class="logs-title">
+                <span class="terminal-icon">⌨️</span>
+                REAL-TIME COMMUNICATIONS LOG
+                <span class="log-count" id="logCount">0 entries</span>
+            </div>
+            <div class="logs-controls">
+                <label class="filter-label">
+                    <input type="checkbox" id="filterDiscovery" checked> Discovery
+                </label>
+                <label class="filter-label">
+                    <input type="checkbox" id="filterTasks" checked> Tasks
+                </label>
+                <label class="filter-label">
+                    <input type="checkbox" id="filterPipeline" checked> Pipeline
+                </label>
+                <label class="filter-label">
+                    <input type="checkbox" id="filterErrors" checked> Errors
+                </label>
+                <button class="btn-clear" onclick="clearLogs()">Clear Logs</button>
+                <button class="btn-refresh" onclick="fetchLogs()">🔄 Refresh</button>
+            </div>
+        </div>
+        <div class="logs-container" id="logsContainer">
+            <div class="log-placeholder">Waiting for communications...</div>
+        </div>
+    </section>
+
+    <script>
+        const API_BASE = '/api';
+        let nodes = [];
+        let connections = [];
+        let tasksProcessed = 0;
+
+        // Network visualization
+        class NetworkViz {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.nodes = [];
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height - 70;
+                this.centerX = this.canvas.width / 2;
+                this.centerY = this.canvas.height / 2;
+            }
+
+            updateNodes(pipelineNodes) {
+                this.nodes = pipelineNodes.map((node, i) => {
+                    const total = pipelineNodes.length;
+                    const angle = (i / total) * Math.PI * 2 - Math.PI / 2;
+                    const radius = Math.min(this.canvas.width, this.canvas.height) * 0.35;
+                    
+                    return {
+                        ...node,
+                        x: this.centerX + Math.cos(angle) * radius,
+                        y: this.centerY + Math.sin(angle) * radius,
+                        angle,
+                        pulsePhase: Math.random() * Math.PI * 2
+                    };
+                });
+            }
+
+            draw(time) {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw central hub
+                const hubPulse = Math.sin(time * 0.002) * 0.3 + 0.7;
+                const gradient = ctx.createRadialGradient(
+                    this.centerX, this.centerY, 0,
+                    this.centerX, this.centerY, 60
+                );
+                gradient.addColorStop(0, `rgba(0, 245, 255, ${hubPulse * 0.5})`);
+                gradient.addColorStop(0.5, `rgba(191, 0, 255, ${hubPulse * 0.3})`);
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.centerX, this.centerY, 60, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Hub core
+                ctx.fillStyle = '#0a0a0f';
+                ctx.beginPath();
+                ctx.arc(this.centerX, this.centerY, 25, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#00f5ff';
+                ctx.font = '12px Orbitron';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('SWARM', this.centerX, this.centerY);
+
+                // Draw connections
+                this.nodes.forEach((node, i) => {
+                    // Connection to hub
+                    const connectionPulse = (time * 0.003 + i * 0.5) % 1;
+                    
+                    ctx.strokeStyle = `rgba(0, 245, 255, 0.3)`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(this.centerX, this.centerY);
+                    ctx.lineTo(node.x, node.y);
+                    ctx.stroke();
+
+                    // Animated pulse along connection
+                    const pulseX = this.centerX + (node.x - this.centerX) * connectionPulse;
+                    const pulseY = this.centerY + (node.y - this.centerY) * connectionPulse;
+                    
+                    ctx.fillStyle = 'rgba(0, 245, 255, 0.8)';
+                    ctx.beginPath();
+                    ctx.arc(pulseX, pulseY, 4, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Connect to next node in pipeline
+                    if (i < this.nodes.length - 1) {
+                        const nextNode = this.nodes[i + 1];
+                        ctx.strokeStyle = 'rgba(0, 255, 136, 0.2)';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([5, 5]);
+                        ctx.beginPath();
+                        ctx.moveTo(node.x, node.y);
+                        ctx.lineTo(nextNode.x, nextNode.y);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+                });
+
+                // Draw nodes
+                this.nodes.forEach((node, i) => {
+                    const nodePulse = Math.sin(time * 0.003 + node.pulsePhase) * 0.3 + 0.7;
+                    
+                    // Node glow
+                    const nodeColor = node.role.includes('Head') ? '#00f5ff' : 
+                                     node.role.includes('Tail') ? '#00ff88' : '#bf00ff';
+                    
+                    const glow = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, 40);
+                    glow.addColorStop(0, `${nodeColor}${Math.floor(nodePulse * 80).toString(16).padStart(2, '0')}`);
+                    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = glow;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 40, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Node circle
+                    ctx.fillStyle = '#0a0a0f';
+                    ctx.strokeStyle = nodeColor;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Node label
+                    ctx.fillStyle = nodeColor;
+                    ctx.font = '10px Space Mono';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(node.node_id.slice(0, 4), node.x, node.y + 3);
+
+                    // Role label
+                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.font = '8px Space Mono';
+                    const roleLabel = node.role.includes('Head') ? 'HEAD' : 
+                                     node.role.includes('Tail') ? 'TAIL' : 'MID';
+                    ctx.fillText(roleLabel, node.x, node.y + 35);
+                });
+
+                // Draw floating particles
+                for (let i = 0; i < 20; i++) {
+                    const particleTime = time * 0.001 + i * 100;
+                    const px = this.centerX + Math.cos(particleTime * 0.5 + i) * (100 + i * 10);
+                    const py = this.centerY + Math.sin(particleTime * 0.3 + i * 2) * (80 + i * 8);
+                    const opacity = (Math.sin(particleTime + i) + 1) * 0.15;
+                    
+                    ctx.fillStyle = `rgba(0, 245, 255, ${opacity})`;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            animate() {
+                const loop = (time) => {
+                    this.draw(time);
+                    requestAnimationFrame(loop);
+                };
+                requestAnimationFrame(loop);
+            }
+        }
+
+        // Initialize visualization
+        const canvas = document.getElementById('networkCanvas');
+        const viz = new NetworkViz(canvas);
+        viz.animate();
+
+        // Add activity
+        function addActivity(icon, text) {
+            const feed = document.getElementById('activityFeed');
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            
+            const item = document.createElement('div');
+            item.className = 'activity-item';
+            item.innerHTML = `
+                <span class="activity-icon">${icon}</span>
+                <span class="activity-time">${time}</span>
+                <span class="activity-text">${text}</span>
+            `;
+            
+            feed.insertBefore(item, feed.firstChild);
+            
+            // Keep only last 20 items
+            while (feed.children.length > 20) {
+                feed.removeChild(feed.lastChild);
+            }
+        }
+
+        // Update node list
+        function updateNodeList(pipelineNodes) {
+            const list = document.getElementById('nodeList');
+            
+            if (pipelineNodes.length === 0) {
+                list.innerHTML = `<div style="color: var(--text-dim); text-align: center; padding: 20px;">
+                    Discovering nodes...
+                </div>`;
+                return;
+            }
+
+            list.innerHTML = pipelineNodes.map(node => {
+                const roleClass = node.role.includes('Head') ? 'head' : 
+                                 node.role.includes('Tail') ? 'tail' : 'middle';
+                const roleLabel = node.role.includes('Head') ? 'HEAD · Layers 0-3' : 
+                                 node.role.includes('Tail') ? 'TAIL · Final Output' : 'MIDDLE · Processing';
+                const emoji = node.role.includes('Head') ? '🚀' : 
+                             node.role.includes('Tail') ? '🎯' : '⚡';
+                
+                return `
+                    <div class="node-item">
+                        <div class="node-avatar ${roleClass}">${emoji}</div>
+                        <div class="node-info">
+                            <div class="node-id">${node.node_id.slice(0, 12)}...</div>
+                            <div class="node-role">${roleLabel}</div>
+                        </div>
+                        <div class="node-status"></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Fetch and update stats
+        async function updateStats() {
+            try {
+                // Fetch general stats
+                const statsRes = await fetch(`${API_BASE}/stats`);
+                const stats = await statsRes.json();
+
+                document.getElementById('totalNodes').textContent = stats.total_peers || 0;
+                document.getElementById('computeNodes').textContent = stats.compute_peers || 0;
+
+                // Fetch pipeline status
+                const pipelineRes = await fetch(`${API_BASE}/pipeline/status`);
+                const pipeline = await pipelineRes.json();
+
+                if (pipeline.success && pipeline.pipeline) {
+                    const p = pipeline.pipeline;
+                    const power = p.equivalent_params_b || 0;
+                    
+                    document.getElementById('totalPower').innerHTML = 
+                        `${power.toFixed(1)}<span style="font-size: 0.8rem">B</span>`;
+                    document.getElementById('powerValue').textContent = power.toFixed(1);
+                    document.getElementById('pipelineLayers').textContent = p.total_layers || 0;
+
+                    // Power bar (max 70B for full bar)
+                    const powerPercent = Math.min((power / 70) * 100, 100);
+                    document.getElementById('powerFill').style.width = `${powerPercent}%`;
+
+                    // Equivalent model
+                    let equivalent = '-';
+                    if (power >= 70) equivalent = 'LLaMA-70B';
+                    else if (power >= 30) equivalent = 'LLaMA-30B';
+                    else if (power >= 13) equivalent = 'LLaMA-13B';
+                    else if (power >= 7) equivalent = 'Mistral-7B';
+                    else if (power >= 3) equivalent = 'Phi-3';
+                    else if (power >= 1) equivalent = 'Qwen-0.5B×' + Math.round(power / 0.5);
+                    else if (power > 0) equivalent = 'Building...';
+                    document.getElementById('equivalentModel').textContent = equivalent;
+
+                    // Update visualization
+                    if (p.nodes && p.nodes.length > 0) {
+                        viz.updateNodes(p.nodes);
+                        updateNodeList(p.nodes);
+                    }
+                }
+
+            } catch (e) {
+                console.error('Stats update failed:', e);
+            }
+        }
+
+        // Simulate some activity
+        function simulateActivity() {
+            const activities = [
+                ['📡', 'Node discovered via LAN broadcast'],
+                ['🔗', 'Pipeline rebuilt with new topology'],
+                ['⚡', 'Task completed in 234ms'],
+                ['🌐', 'Kademlia peer exchange'],
+                ['✅', 'Health check passed'],
+                ['🔄', 'Layers redistributed'],
+            ];
+            
+            const [icon, text] = activities[Math.floor(Math.random() * activities.length)];
+            addActivity(icon, text);
+        }
+
+        // === LOGS SYSTEM ===
+        let allLogs = [];
+        
+        // Fetch logs from API
+        async function fetchLogs() {
+            try {
+                const res = await fetch(`${API_BASE}/logs?count=200`);
+                const logs = await res.json();
+                allLogs = logs;
+                renderLogs();
+                addActivity('📋', `Fetched ${logs.length} log entries`);
+            } catch (e) {
+                console.error('Failed to fetch logs:', e);
+            }
+        }
+
+        // Clear logs
+        async function clearLogs() {
+            try {
+                await fetch(`${API_BASE}/logs/clear`, { method: 'POST' });
+                allLogs = [];
+                renderLogs();
+                addActivity('🗑️', 'Logs cleared');
+            } catch (e) {
+                console.error('Failed to clear logs:', e);
+            }
+        }
+
+        // Render logs based on filters
+        function renderLogs() {
+            const container = document.getElementById('logsContainer');
+            const showDiscovery = document.getElementById('filterDiscovery').checked;
+            const showTasks = document.getElementById('filterTasks').checked;
+            const showPipeline = document.getElementById('filterPipeline').checked;
+            const showErrors = document.getElementById('filterErrors').checked;
+
+            const filteredLogs = allLogs.filter(log => {
+                const type = log.log_type;
+                if (type === 'Discovery' && !showDiscovery) return false;
+                if ((type === 'TaskSent' || type === 'TaskReceived' || type === 'TaskCompleted') && !showTasks) return false;
+                if ((type === 'PipelineBuilt' || type === 'PipelineStage') && !showPipeline) return false;
+                if ((type === 'TaskFailed' || type === 'NetworkError') && !showErrors) return false;
+                return true;
+            });
+
+            document.getElementById('logCount').textContent = `${filteredLogs.length} entries`;
+
+            if (filteredLogs.length === 0) {
+                container.innerHTML = '<div class="log-placeholder">No logs matching filters. Try sending a task!</div>';
+                return;
+            }
+
+            container.innerHTML = filteredLogs.map(log => {
+                const time = new Date(log.timestamp).toLocaleTimeString('en-US', { 
+                    hour12: false, 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                
+                const typeClass = getTypeClass(log.log_type);
+                const typeLabel = getTypeLabel(log.log_type);
+                const sourceShort = log.source.length > 10 ? log.source.slice(0, 10) + '...' : log.source;
+                
+                let detailsHtml = '';
+                if (log.details) {
+                    detailsHtml = `<div class="log-details">${JSON.stringify(log.details, null, 2)}</div>`;
+                }
+                
+                let durationHtml = '';
+                if (log.duration_ms) {
+                    durationHtml = `<span class="log-duration">${log.duration_ms}ms</span>`;
+                }
+
+                return `
+                    <div class="log-entry ${typeClass}">
+                        <div class="log-time">${time}</div>
+                        <div class="log-type ${typeClass}">${typeLabel}</div>
+                        <div class="log-source">${sourceShort}</div>
+                        <div class="log-message">${log.message} ${durationHtml}</div>
+                        ${detailsHtml}
+                    </div>
+                `;
+            }).join('');
+
+            // Auto-scroll to bottom
+            container.scrollTop = 0;
+        }
+
+        function getTypeClass(type) {
+            const typeMap = {
+                'Discovery': 'discovery',
+                'TaskSent': 'task-sent',
+                'TaskReceived': 'task-received',
+                'TaskCompleted': 'task-completed',
+                'TaskFailed': 'task-failed',
+                'PipelineBuilt': 'pipeline',
+                'PipelineStage': 'pipeline',
+                'NetworkError': 'network-error',
+                'Info': 'info',
+                'Warning': 'info',
+                'Debug': 'debug',
+            };
+            return typeMap[type] || 'info';
+        }
+
+        function getTypeLabel(type) {
+            const labelMap = {
+                'Discovery': '📡 DISCOVER',
+                'TaskSent': '📤 SENT',
+                'TaskReceived': '📥 RECV',
+                'TaskCompleted': '✅ DONE',
+                'TaskFailed': '❌ FAIL',
+                'PipelineBuilt': '🔗 PIPELINE',
+                'PipelineStage': '⚡ STAGE',
+                'NetworkError': '🔴 NET ERR',
+                'Info': 'ℹ️ INFO',
+                'Warning': '⚠️ WARN',
+                'Debug': '🔍 DEBUG',
+            };
+            return labelMap[type] || type;
+        }
+
+        // Add filter event listeners
+        document.getElementById('filterDiscovery').addEventListener('change', renderLogs);
+        document.getElementById('filterTasks').addEventListener('change', renderLogs);
+        document.getElementById('filterPipeline').addEventListener('change', renderLogs);
+        document.getElementById('filterErrors').addEventListener('change', renderLogs);
+
+        // Initialize
+        updateStats();
+        fetchLogs();
+        setInterval(updateStats, 3000);
+        setInterval(fetchLogs, 2000);  // Auto-refresh logs every 2 seconds
+
+        // Initial activity
+        setTimeout(() => addActivity('🔍', 'Scanning for network peers...'), 1000);
+        setTimeout(() => addActivity('🌐', 'Connected to swarm network'), 2500);
+    </script>
+</body>
+</html>
+

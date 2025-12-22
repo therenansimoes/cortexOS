@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CortexOS Peer</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-input: #1a1a24;
+            --accent-green: #00ff88;
+            --accent-cyan: #00f5ff;
+            --accent-purple: #bf00ff;
+            --accent-orange: #ff6b00;
+            --text: #ffffff;
+            --text-dim: rgba(255,255,255,0.5);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+        
+        @media (min-width: 768px) {
+            .container {
+                grid-template-columns: 1fr 1fr;
+            }
+            .header, .toggle-section, .chat-card { grid-column: 1 / -1; }
+        }
+        
+        .header {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(135deg, rgba(0,245,255,0.1), rgba(191,0,255,0.1));
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .node-id { font-size: 0.7rem; color: var(--text-dim); margin-top: 5px; }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        
+        .status-badge.active { background: rgba(0,255,136,0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+        .status-badge.inactive { background: rgba(255,107,0,0.2); color: var(--accent-orange); border: 1px solid var(--accent-orange); }
+        
+        .card {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .card-title {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-dim);
+            margin-bottom: 12px;
+        }
+        
+        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 6px;
+        }
+        
+        .stat-value { font-size: 1.2rem; font-weight: 700; color: var(--accent-cyan); }
+        .stat-label { font-size: 0.6rem; color: var(--text-dim); margin-top: 3px; }
+        
+        .device-info { display: grid; gap: 8px; }
+        
+        .device-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 5px;
+            font-size: 0.75rem;
+        }
+        
+        .device-label { color: var(--text-dim); }
+        .device-value { font-weight: 600; }
+        
+        .toggle-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            background: linear-gradient(135deg, rgba(0,255,136,0.05), rgba(0,245,255,0.05));
+            border-radius: 10px;
+        }
+        
+        .toggle-label { font-size: 0.9rem; font-weight: 600; }
+        .toggle-desc { font-size: 0.65rem; color: var(--text-dim); margin-top: 3px; }
+        
+        .toggle-switch { position: relative; width: 50px; height: 26px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255,255,255,0.1);
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px; width: 20px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider { background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan)); }
+        input:checked + .toggle-slider:before { transform: translateX(24px); }
+        
+        .peers-list { max-height: 150px; overflow-y: auto; }
+        
+        .peer-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 5px;
+            margin-bottom: 6px;
+            font-size: 0.7rem;
+        }
+        
+        .peer-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); }
+        .peer-id { flex: 1; }
+        .peer-addr { color: var(--text-dim); font-size: 0.6rem; }
+        
+        .no-peers { text-align: center; color: var(--text-dim); padding: 15px; font-size: 0.75rem; }
+        
+        .capacity-bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+        .capacity-fill { height: 100%; background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan)); border-radius: 3px; }
+        .capacity-label { display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-dim); margin-top: 4px; }
+        
+        /* Chat styles */
+        .chat-card { display: flex; flex-direction: column; height: 350px; }
+        
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .chat-name-input {
+            background: var(--bg-input);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 5px;
+            padding: 5px 10px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.7rem;
+            width: 120px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .chat-msg {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            max-width: 85%;
+        }
+        
+        .chat-msg.mine {
+            background: linear-gradient(135deg, rgba(0,245,255,0.2), rgba(191,0,255,0.2));
+            margin-left: auto;
+        }
+        
+        .chat-msg.theirs {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .chat-msg.system {
+            background: rgba(255,107,0,0.1);
+            text-align: center;
+            max-width: 100%;
+            font-size: 0.65rem;
+            color: var(--accent-orange);
+        }
+        
+        .chat-sender {
+            font-size: 0.6rem;
+            color: var(--accent-cyan);
+            margin-bottom: 3px;
+        }
+        
+        .chat-time {
+            font-size: 0.55rem;
+            color: var(--text-dim);
+            margin-top: 3px;
+        }
+        
+        .chat-input-area {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .chat-input {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.8rem;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+        }
+        
+        .chat-send {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            color: white;
+            font-family: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        
+        .chat-send:hover { opacity: 0.9; }
+        
+        footer {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 15px;
+            color: var(--text-dim);
+            font-size: 0.6rem;
+        }
+        
+        footer a { color: var(--accent-cyan); text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 CortexOS Peer</h1>
+            <div class="node-id" id="nodeId">Loading...</div>
+            <div class="status-badge active" id="statusBadge">CONTRIBUTING</div>
+        </div>
+        
+        <div class="toggle-section">
+            <div>
+                <div class="toggle-label">Share My Compute</div>
+                <div class="toggle-desc">Help process AI tasks</div>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="contributeToggle" checked onchange="toggleContribute()">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">📊 Stats</div>
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="tasksProcessed">0</div>
+                    <div class="stat-label">Tasks</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="bytesReceived">0</div>
+                    <div class="stat-label">Data</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="queueSize">0</div>
+                    <div class="stat-label">Queue</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="peersCount">0</div>
+                    <div class="stat-label">Peers</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">💻 Device</div>
+            <div class="device-info">
+                <div class="device-row">
+                    <span class="device-label">CPU</span>
+                    <span class="device-value" id="cpuModel">-</span>
+                </div>
+                <div class="device-row">
+                    <span class="device-label">RAM</span>
+                    <span class="device-value" id="ramInfo">-</span>
+                </div>
+                <div class="device-row">
+                    <span class="device-label">GPU</span>
+                    <span class="device-value" id="gpuInfo">-</span>
+                </div>
+            </div>
+            <div class="capacity-bar">
+                <div class="capacity-fill" id="capacityFill" style="width: 0%"></div>
+            </div>
+            <div class="capacity-label">
+                <span>Score</span>
+                <span id="capacityScore">0/100</span>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">🌐 Peers</div>
+            <div class="peers-list" id="peersList">
+                <div class="no-peers">Searching...</div>
+            </div>
+        </div>
+        
+        <div class="card chat-card">
+            <div class="chat-header">
+                <div class="card-title">💬 P2P Chat</div>
+                <input type="text" class="chat-name-input" id="chatName" placeholder="Your name" onchange="setName()">
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input-area">
+                <input type="text" class="chat-input" id="chatInput" placeholder="Type a message..." onkeypress="handleChatKey(event)">
+                <button class="chat-send" onclick="sendChat()">Send</button>
+            </div>
+        </div>
+        
+        <footer>
+            <p>CortexOS - Decentralized AI • <a href="https://github.com/therenansimoes/cortexOS">GitHub</a></p>
+        </footer>
+    </div>
+    
+    <script>
+        let myNodeId = '';
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + sizes[i];
+        }
+        
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                
+                myNodeId = data.node_id;
+                document.getElementById('nodeId').textContent = `Node: ${data.node_id}`;
+                
+                const badge = document.getElementById('statusBadge');
+                badge.textContent = data.is_contributing ? 'CONTRIBUTING' : 'PAUSED';
+                badge.className = 'status-badge ' + (data.is_contributing ? 'active' : 'inactive');
+                
+                document.getElementById('contributeToggle').checked = data.is_contributing;
+                document.getElementById('tasksProcessed').textContent = data.stats.tasks_processed;
+                document.getElementById('bytesReceived').textContent = formatBytes(data.stats.bytes_received);
+                document.getElementById('queueSize').textContent = data.stats.queue_size;
+                document.getElementById('peersCount').textContent = data.network.peers_count;
+                
+                document.getElementById('cpuModel').textContent = data.device.cpu_model.substring(0, 20);
+                document.getElementById('ramInfo').textContent = `${Math.round(data.device.ram_available_mb/1024*10)/10}/${Math.round(data.device.ram_total_mb/1024*10)/10}GB`;
+                document.getElementById('gpuInfo').textContent = data.device.gpu ? data.device.gpu.substring(0, 20) : 'None';
+                document.getElementById('capacityScore').textContent = `${data.device.capacity_score}/100`;
+                document.getElementById('capacityFill').style.width = `${data.device.capacity_score}%`;
+                
+                const peersList = document.getElementById('peersList');
+                if (data.network.peers.length === 0) {
+                    peersList.innerHTML = '<div class="no-peers">No peers yet</div>';
+                } else {
+                    peersList.innerHTML = data.network.peers.map(p => `
+                        <div class="peer-item">
+                            <div class="peer-dot"></div>
+                            <div class="peer-id">${p.node_id.substring(0, 12)}...</div>
+                            <div class="peer-addr">${p.address}</div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Status error:', e);
+            }
+        }
+        
+        async function fetchChat() {
+            try {
+                const res = await fetch('/api/chat');
+                const messages = await res.json();
+                
+                const container = document.getElementById('chatMessages');
+                container.innerHTML = messages.map(m => {
+                    const isMine = m.from_node === myNodeId;
+                    const isSystem = m.is_system;
+                    
+                    if (isSystem) {
+                        return `<div class="chat-msg system">${m.content}</div>`;
+                    }
+                    
+                    return `
+                        <div class="chat-msg ${isMine ? 'mine' : 'theirs'}">
+                            <div class="chat-sender">${m.from_name}</div>
+                            <div>${m.content}</div>
+                            <div class="chat-time">${formatTime(m.timestamp)}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+                container.scrollTop = container.scrollHeight;
+            } catch (e) {
+                console.error('Chat error:', e);
+            }
+        }
+        
+        async function toggleContribute() {
+            const contribute = document.getElementById('contributeToggle').checked;
+            await fetch('/api/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contribute })
+            });
+            fetchStatus();
+        }
+        
+        async function sendChat() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            await fetch('/api/chat/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message })
+            });
+            
+            input.value = '';
+            fetchChat();
+        }
+        
+        function handleChatKey(event) {
+            if (event.key === 'Enter') sendChat();
+        }
+        
+        async function setName() {
+            const name = document.getElementById('chatName').value.trim();
+            if (!name) return;
+            
+            await fetch('/api/chat/name', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+        }
+        
+        // Load saved name
+        const savedName = localStorage.getItem('cortex-name');
+        if (savedName) {
+            document.getElementById('chatName').value = savedName;
+            setName();
+        }
+        
+        document.getElementById('chatName').addEventListener('change', function() {
+            localStorage.setItem('cortex-name', this.value);
+        });
+        
+        fetchStatus();
+        fetchChat();
+        setInterval(fetchStatus, 2000);
+        setInterval(fetchChat, 1000);
+    </script>
+</body>
+</html>

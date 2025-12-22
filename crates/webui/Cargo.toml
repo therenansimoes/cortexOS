@@ -13,6 +13,7 @@ cortex-core = { path = "../core" }
 cortex-grid = { path = "../grid" }
 cortex-skill = { path = "../skill" }
 cortex-reputation = { path = "../reputation" }
+cortex-inference = { path = "../inference" }
 
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -30,4 +31,8 @@ hex = "0.4"
 axum = { version = "0.7", features = ["ws", "macros"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "cors"] }
+
+# Logging
+lazy_static = "1.4"
+chrono = { version = "0.4", features = ["serde"] }
 

@@ -13,10 +13,12 @@ use cortex_reputation::{TrustGraph, SkillId};
 use cortex_skill::NetworkSkillRegistry;
 use cortex_core::runtime::{EventBus, Runtime};
 
+mod capabilities;
 mod config;
 mod network;
 mod task_server;
 
+use capabilities::{detect_device_tier, DeviceTier};
 use config::NodeConfig;
 use task_server::TaskServer;
 
@@ -103,6 +105,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_daemon(config: NodeConfig) -> Result<(), Box<dyn std::error::Error>> {
     info!("🧠 CortexOS Node Daemon");
     info!("   Version: 0.1.0");
+    info!("");
+    
+    // Auto-detect device capabilities
+    let device_tier = detect_device_tier();
+    info!("🔍 Device tier: {:?}", device_tier);
+    info!("   Recommended model: {}", device_tier.recommended_model());
     info!("");
 
     // Generate or load node ID

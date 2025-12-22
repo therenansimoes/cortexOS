@@ -2,26 +2,39 @@
 name = "cortex-inference"
 version.workspace = true
 edition.workspace = true
-description = "Local LLM inference for decentralized AI"
+description = "Distributed LLM inference engine with tensor parallelism"
 
 [features]
 default = []
-# Enable llama.cpp bindings (requires cmake and C++ compiler)
-llama = ["llama-cpp-2"]
+llama = []  # LLaMA model support
+cuda = ["candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
+metal = ["candle-core/metal", "candle-nn/metal", "candle-transformers/metal"]
 
 [dependencies]
 cortex-core = { path = "../core" }
-cortex-skill = { path = "../skill" }
+cortex-grid = { path = "../grid" }
+
+# Candle ML framework (Rust-native)
+candle-core = "0.8"
+candle-nn = "0.8"
+candle-transformers = "0.8"
+
+# Model loading
+hf-hub = "0.3"
+tokenizers = "0.20"
+
+# Async/networking
+tokio = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true }
-thiserror = { workspace = true }
+bincode = "1.3"
+
+# Utils
 tracing = { workspace = true }
-async-trait = { workspace = true }
+thiserror = { workspace = true }
+byteorder = "1.5"
 blake3 = { workspace = true }
-
-# Optional: llama.cpp bindings
-llama-cpp-2 = { version = "0.1.130", optional = true }
-
-[dev-dependencies]
-tokio = { workspace = true }
+half = "2.3"

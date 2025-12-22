@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CortexOS · How It Works</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: rgba(15, 15, 25, 0.95);
+            --accent-cyan: #00f5ff;
+            --accent-purple: #bf00ff;
+            --accent-green: #00ff88;
+            --accent-orange: #ff6b00;
+            --accent-pink: #ff0080;
+            --text-dim: rgba(255,255,255,0.5);
+            --text-light: rgba(255,255,255,0.85);
+            --border-subtle: rgba(255,255,255,0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(rgba(0, 245, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Header */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.9);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 25px;
+        }
+
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent-cyan);
+        }
+
+        /* Hero */
+        .hero {
+            position: relative;
+            z-index: 10;
+            padding: 80px 40px;
+            text-align: center;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .hero h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3rem;
+            font-weight: 900;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, white 0%, var(--accent-cyan) 50%, var(--accent-purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-dim);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Main content */
+        main {
+            position: relative;
+            z-index: 10;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 40px 80px;
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: 60px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .section-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .section-icon.cyan { background: linear-gradient(135deg, var(--accent-cyan), #0088cc); }
+        .section-icon.purple { background: linear-gradient(135deg, var(--accent-purple), #8800cc); }
+        .section-icon.green { background: linear-gradient(135deg, var(--accent-green), #00aa55); }
+        .section-icon.orange { background: linear-gradient(135deg, var(--accent-orange), #cc5500); }
+        .section-icon.pink { background: linear-gradient(135deg, var(--accent-pink), #cc0066); }
+
+        .section-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 25px;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: var(--accent-cyan);
+            transform: translateY(-2px);
+        }
+
+        .card-title {
+            font-family: 'Space Mono', monospace;
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--accent-cyan);
+        }
+
+        .card-content {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+        }
+
+        /* Code blocks */
+        .code-block {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+
+        .code-block pre {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--accent-cyan);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .code-block .comment { color: var(--text-dim); }
+        .code-block .keyword { color: var(--accent-purple); }
+        .code-block .string { color: var(--accent-green); }
+        .code-block .number { color: var(--accent-orange); }
+
+        /* Diagram */
+        .diagram {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 30px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .diagram pre {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--accent-cyan);
+            display: inline-block;
+            text-align: left;
+        }
+
+        /* Stats display */
+        .live-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 30px 0;
+        }
+
+        .stat-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+        }
+
+        /* Flow diagram */
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 30px;
+            background: var(--bg-card);
+            border-radius: 16px;
+            margin: 20px 0;
+        }
+
+        .flow-box {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .flow-arrow {
+            color: var(--accent-cyan);
+            font-size: 1.5rem;
+        }
+
+        /* Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .data-table th {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .data-table td {
+            font-size: 0.9rem;
+        }
+
+        .data-table tr:hover td {
+            background: rgba(0, 245, 255, 0.05);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge.cyan { background: rgba(0, 245, 255, 0.2); color: var(--accent-cyan); }
+        .badge.purple { background: rgba(191, 0, 255, 0.2); color: var(--accent-purple); }
+        .badge.green { background: rgba(0, 255, 136, 0.2); color: var(--accent-green); }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 10px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab.active {
+            background: var(--accent-cyan);
+            color: black;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+            margin: 20px 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(180deg, var(--accent-cyan), var(--accent-purple));
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 25px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -26px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            border: 2px solid var(--bg-dark);
+        }
+
+        .timeline-title {
+            font-family: 'Space Mono', monospace;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .timeline-desc {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            header {
+                padding: 15px 20px;
+            }
+
+            .hero {
+                padding: 40px 20px;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            main {
+                padding: 0 20px 40px;
+            }
+
+            .flow-diagram {
+                flex-direction: column;
+            }
+
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+
+    <header>
+        <div class="logo">CORTEX<span style="color: var(--accent-purple)">OS</span></div>
+        <nav class="nav-links">
+            <a href="/">💬 Chat</a>
+            <a href="/admin">🌐 Swarm</a>
+            <a href="/docs" style="color: var(--accent-cyan)">📚 Docs</a>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <h1>How CortexOS Works</h1>
+        <p>A complete technical guide to the world's first truly distributed AI network. Free, open-source, and community-powered.</p>
+    </section>
+
+    <main>
+        <!-- Live Stats -->
+        <div class="live-stats" id="liveStats">
+            <div class="stat-box">
+                <div class="stat-value" id="statNodes">-</div>
+                <div class="stat-label">Active Nodes</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="statPower">-</div>
+                <div class="stat-label">Compute Power</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="statLayers">-</div>
+                <div class="stat-label">Total Layers</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="statEquiv">-</div>
+                <div class="stat-label">Equivalent Model</div>
+            </div>
+        </div>
+
+        <!-- Architecture Overview -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-icon cyan">🏗️</div>
+                <h2 class="section-title">Architecture Overview</h2>
+            </div>
+
+            <p style="margin-bottom: 20px;">CortexOS is built as a modular, event-driven system with multiple specialized crates:</p>
+
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-title">cortex-core</div>
+                    <div class="card-content">
+                        Event system, runtime, backpressure policies, and core capabilities. The foundation everything builds upon.
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">cortex-grid</div>
+                    <div class="card-content">
+                        P2P networking layer. Handles LAN discovery, Kademlia DHT, relay mesh, and the new <strong>Pipeline Parallelism</strong> system.
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">cortex-node (cortexd)</div>
+                    <div class="card-content">
+                        The main daemon that runs on each device. Handles task execution, skill registration, and network participation.
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">cortex-webui</div>
+                    <div class="card-content">
+                        Web interface for interacting with the network. Includes chat UI, admin dashboard, and this documentation.
+                    </div>
+                </div>
+            </div>
+
+            <div class="diagram">
+                <pre>
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER INTERFACES                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │  Chat UI    │  │   Admin     │  │    Docs     │             │
+│  │  (index)    │  │  Dashboard  │  │   (you!)    │             │
+│  └──────┬──────┘  └──────┬──────┘  └─────────────┘             │
+│         └────────────────┼───────────────────────────────────► │
+│                          ▼                                      │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                    cortex-webui                           │  │
+│  │   • HTTP API (Axum)                                       │  │
+│  │   • WebSocket (coming soon)                               │  │
+│  │   • Task routing                                          │  │
+│  └──────────────────────────┬───────────────────────────────┘  │
+└─────────────────────────────┼───────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+    ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+    │   cortexd   │  │   cortexd   │  │   cortexd   │
+    │   Node 1    │  │   Node 2    │  │   Node 3    │
+    │  (HEAD)     │  │  (MIDDLE)   │  │   (TAIL)    │
+    │ Layers 0-3  │  │ Layers 4-7  │  │ Layers 8-11 │
+    └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+           │                │                │
+           └────────────────┴────────────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              │        cortex-grid        │
+              │  • LAN Discovery (mDNS)   │
+              │  • Kademlia DHT           │
+              │  • Pipeline Coordinator   │
+              │  • Relay Mesh             │
+              └───────────────────────────┘
+                </pre>
+            </div>
+        </section>
+
+        <!-- Pipeline Parallelism -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-icon purple">🔗</div>
+                <h2 class="section-title">Pipeline Parallelism</h2>
+            </div>
+
+            <p style="margin-bottom: 20px;">The core innovation: run HUGE AI models across many small devices!</p>
+
+            <div class="flow-diagram">
+                <div class="flow-box">Input "What is AI?"</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-box">Node 1<br>Layers 0-3</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-box">Node 2<br>Layers 4-7</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-box">Node 3<br>Layers 8-11</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-box">Output</div>
+            </div>
+
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-title">The Math</div>
+                    <div class="card-content">
+                        <strong style="color: var(--accent-cyan)">100 nodes × 0.5B = 50B equivalent!</strong><br><br>
+                        Each node runs a tiny 0.5B model (fits on any device). Together, they form a massive distributed brain.
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">How It Works</div>
+                    <div class="card-content">
+                        1. User sends prompt<br>
+                        2. HEAD node tokenizes & processes first layers<br>
+                        3. Hidden states flow to MIDDLE nodes<br>
+                        4. TAIL node produces final output<br>
+                        5. Result returned to user
+                    </div>
+                </div>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="comment">// Pipeline roles assigned automatically</span>
+<span class="keyword">pub enum</span> PipelineRole {
+    <span class="comment">// First node - receives input, outputs hidden states</span>
+    Head { layers: (<span class="number">0</span>, <span class="number">3</span>) },
+    
+    <span class="comment">// Middle nodes - process and forward hidden states</span>
+    Middle { layers: (<span class="number">4</span>, <span class="number">7</span>) },
+    
+    <span class="comment">// Final node - produces output tokens</span>
+    Tail { layers: (<span class="number">8</span>, <span class="number">11</span>) },
+}</pre>
+            </div>
+        </section>
+
+        <!-- Node Discovery -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-icon green">🔍</div>
+                <h2 class="section-title">Node Discovery</h2>
+            </div>
+
+            <p style="margin-bottom: 20px;">Nodes find each other automatically using two discovery mechanisms:</p>
+
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('lan')">LAN Discovery</button>
+                <button class="tab" onclick="showTab('kademlia')">Kademlia DHT</button>
+                <button class="tab" onclick="showTab('relay')">Relay Mesh</button>
+            </div>
+
+            <div id="lan" class="tab-content active">
+                <div class="card">
+                    <div class="card-title">Local Network Discovery</div>
+                    <div class="card-content">
+                        <p>Uses UDP multicast on port <code>7077</code> to find peers on the same network.</p>
+                        <br>
+                        <table class="data-table">
+                            <tr>
+                                <th>Property</th>
+                                <th>Value</th>
+                            </tr>
+                            <tr>
+                                <td>Protocol</td>
+                                <td>UDP Multicast</td>
+                            </tr>
+                            <tr>
+                                <td>Port</td>
+                                <td><code>7077</code></td>
+                            </tr>
+                            <tr>
+                                <td>Multicast Address</td>
+                                <td><code>224.0.0.251</code></td>
+                            </tr>
+                            <tr>
+                                <td>Broadcast Interval</td>
+                                <td>5 seconds</td>
+                            </tr>
+                            <tr>
+                                <td>Peer Timeout</td>
+                                <td>120 seconds</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="kademlia" class="tab-content">
+                <div class="card">
+                    <div class="card-title">Kademlia Distributed Hash Table</div>
+                    <div class="card-content">
+                        <p>For wide-area peer discovery across the internet using libp2p.</p>
+                        <br>
+                        <table class="data-table">
+                            <tr>
+                                <th>Property</th>
+                                <th>Value</th>
+                            </tr>
+                            <tr>
+                                <td>Protocol</td>
+                                <td>libp2p Kademlia</td>
+                            </tr>
+                            <tr>
+                                <td>Transport</td>
+                                <td>TCP + Noise encryption</td>
+                            </tr>
+                            <tr>
+                                <td>Bootstrap</td>
+                                <td>Random walk + stored peers</td>
+                            </tr>
+                            <tr>
+                                <td>Bucket Size (k)</td>
+                                <td>20</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="relay" class="tab-content">
+                <div class="card">
+                    <div class="card-title">AirTag-Style Relay Mesh</div>
+                    <div class="card-content">
+                        <p>Anonymous message relay for nodes behind NAT or firewalls.</p>
+                        <br>
+                        <ul style="padding-left: 20px; color: var(--text-dim);">
+                            <li>End-to-end encryption (X25519 + ChaCha20-Poly1305)</li>
+                            <li>Rotating identities for privacy</li>
+                            <li>TTL/hop count limits</li>
+                            <li>DHT bulletin board for offline messages</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Task Execution -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-icon orange">⚡</div>
+                <h2 class="section-title">Task Execution Flow</h2>
+            </div>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-title">1. Task Submission</div>
+                    <div class="timeline-desc">User sends prompt via Chat UI or API endpoint <code>POST /api/tasks/pipeline</code></div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-title">2. Pipeline Build</div>
+                    <div class="timeline-desc">PipelineCoordinator queries PeerStore for compute-capable nodes, assigns HEAD/MIDDLE/TAIL roles</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-title">3. Task Routing</div>
+                    <div class="timeline-desc">Task sent to HEAD node via TCP on port <code>node_port + 1000</code></div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-title">4. Layer Processing</div>
+                    <div class="timeline-desc">Each node processes its assigned layers, passes hidden states to next node</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-title">5. LLM Inference</div>
+                    <div class="timeline-desc">TaskServer calls Ollama API (<code>localhost:11434</code>) for actual LLM completion</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-title">6. Response Return</div>
+                    <div class="timeline-desc">Result flows back through pipeline, returned to user with timing metadata</div>
+                </div>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="comment">// Task request structure</span>
+<span class="keyword">struct</span> TaskRequest {
+    task_id: <span class="string">String</span>,      <span class="comment">// Unique identifier</span>
+    skill: <span class="string">String</span>,        <span class="comment">// "llm", "math", "coding"</span>
+    payload: <span class="string">String</span>,      <span class="comment">// User's prompt</span>
+    from_node: <span class="string">String</span>,    <span class="comment">// Origin node ID</span>
+}
+
+<span class="comment">// Task response structure</span>
+<span class="keyword">struct</span> TaskResponse {
+    success: <span class="keyword">bool</span>,
+    task_id: <span class="string">String</span>,
+    result: Option&lt;<span class="string">String</span>&gt;,
+    execution_time_ms: <span class="number">u64</span>,
+}</pre>
+            </div>
+        </section>
+
+        <!-- Network Protocols -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-icon pink">📡</div>
+                <h2 class="section-title">Network Protocols</h2>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Port</th>
+                        <th>Protocol</th>
+                        <th>Purpose</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="portsTable">
+                    <tr>
+                        <td><code>7077</code></td>
+                        <td>UDP</td>
+                        <td>LAN Discovery (multicast)</td>
+                        <td><span class="badge green">Active</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>8080</code></td>
+                        <td>HTTP</td>
+                        <td>Web UI & API</td>
+                        <td><span class="badge green">Active</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>7001-7005</code></td>
+                        <td>TCP</td>
+                        <td>Node main ports</td>
+                        <td><span class="badge cyan">Variable</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>8001-8005</code></td>
+                        <td>TCP</td>
+                        <td>Task servers (port + 1000)</td>
+                        <td><span class="badge cyan">Variable</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>11434</code></td>
+                        <td>HTTP</td>
+                        <td>Ollama LLM API</td>
+                        <td><span class="badge purple">External</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Live Node Info -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-icon cyan">🖥️</div>
+                <h2 class="section-title">Live Pipeline Nodes</h2>
+            </div>
+
+            <table class="data-table" id="nodesTable">
+                <thead>
+                    <tr>
+                        <th>Node ID</th>
+                        <th>Role</th>
+                        <th>Layers</th>
+                        <th>Address</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="nodesBody">
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-dim);">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- API Reference -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-icon purple">🔌</div>
+                <h2 class="section-title">API Reference</h2>
+            </div>
+
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-title">GET /api/status</div>
+                    <div class="card-content">Returns node status, peer count, uptime</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">GET /api/peers</div>
+                    <div class="card-content">List all discovered peers with capabilities</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">GET /api/stats</div>
+                    <div class="card-content">Network statistics (peers, tasks, skills)</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">GET /api/pipeline/status</div>
+                    <div class="card-content">Current pipeline configuration and nodes</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">POST /api/tasks/delegate</div>
+                    <div class="card-content">Send task to single best node</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">POST /api/tasks/pipeline</div>
+                    <div class="card-content">Execute task through distributed pipeline</div>
+                </div>
+            </div>
+
+            <div class="code-block">
+                <pre><span class="comment"># Example: Run distributed inference</span>
+curl -X POST http://localhost:8080/api/tasks/pipeline \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -d <span class="string">'{"payload": "What is quantum computing?", "skill": "llm"}'</span>
+
+<span class="comment"># Response:</span>
+{
+  <span class="string">"success"</span>: <span class="keyword">true</span>,
+  <span class="string">"result"</span>: <span class="string">"Quantum computing is..."</span>,
+  <span class="string">"distributed_info"</span>: {
+    <span class="string">"nodes_used"</span>: <span class="number">4</span>,
+    <span class="string">"equivalent_params_b"</span>: <span class="number">2.0</span>,
+    <span class="string">"is_truly_distributed"</span>: <span class="keyword">true</span>
+  }
+}</pre>
+            </div>
+        </section>
+
+        <!-- File Structure -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-icon green">📁</div>
+                <h2 class="section-title">Project Structure</h2>
+            </div>
+
+            <div class="code-block">
+                <pre>cortexOS/
+├── crates/
+│   ├── core/           <span class="comment"># Event system, runtime</span>
+│   ├── grid/           <span class="comment"># P2P networking</span>
+│   │   ├── discovery.rs    <span class="comment"># LAN + Kademlia</span>
+│   │   ├── pipeline.rs     <span class="comment"># Pipeline parallelism ⭐</span>
+│   │   ├── peer.rs         <span class="comment"># PeerStore, NodeId</span>
+│   │   └── relay.rs        <span class="comment"># AirTag-style relay</span>
+│   ├── node/           <span class="comment"># cortexd daemon</span>
+│   │   ├── main.rs         <span class="comment"># Entry point</span>
+│   │   ├── task_server.rs  <span class="comment"># TCP task handler</span>
+│   │   └── capabilities.rs <span class="comment"># Device detection</span>
+│   ├── webui/          <span class="comment"># Web interface</span>
+│   │   ├── api.rs          <span class="comment"># REST endpoints</span>
+│   │   └── static/         <span class="comment"># HTML/CSS/JS</span>
+│   ├── agent/          <span class="comment"># Agent framework</span>
+│   ├── skill/          <span class="comment"># Skill routing</span>
+│   ├── reputation/     <span class="comment"># EigenTrust</span>
+│   └── inference/      <span class="comment"># LLM integration</span>
+└── apps/
+    └── launcher.sh     <span class="comment"># One-click start</span></pre>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // Tab switching
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        // Fetch and display live stats
+        async function updateStats() {
+            try {
+                const [statsRes, pipelineRes] = await Promise.all([
+                    fetch('/api/stats'),
+                    fetch('/api/pipeline/status')
+                ]);
+                
+                const stats = await statsRes.json();
+                const pipeline = await pipelineRes.json();
+
+                document.getElementById('statNodes').textContent = stats.total_peers || 0;
+
+                if (pipeline.success && pipeline.pipeline) {
+                    const p = pipeline.pipeline;
+                    document.getElementById('statPower').textContent = `${p.equivalent_params_b.toFixed(1)}B`;
+                    document.getElementById('statLayers').textContent = p.total_layers || 0;
+                    
+                    // Equivalent model
+                    let equiv = '-';
+                    const power = p.equivalent_params_b;
+                    if (power >= 70) equiv = 'LLaMA-70B';
+                    else if (power >= 30) equiv = 'LLaMA-30B';
+                    else if (power >= 13) equiv = 'LLaMA-13B';
+                    else if (power >= 7) equiv = 'Mistral-7B';
+                    else if (power >= 3) equiv = 'Phi-3';
+                    else if (power > 0) equiv = `${Math.round(power / 0.5)}×Qwen`;
+                    document.getElementById('statEquiv').textContent = equiv;
+
+                    // Update nodes table
+                    updateNodesTable(p.nodes || []);
+                }
+            } catch (e) {
+                console.error('Stats update failed:', e);
+            }
+        }
+
+        function updateNodesTable(nodes) {
+            const tbody = document.getElementById('nodesBody');
+            
+            if (nodes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim);">No nodes in pipeline</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = nodes.map(node => {
+                const roleMatch = node.role.match(/(Head|Middle|Tail)/);
+                const role = roleMatch ? roleMatch[1].toUpperCase() : 'UNKNOWN';
+                const layersMatch = node.role.match(/\((\d+), (\d+)\)/);
+                const layers = layersMatch ? `${layersMatch[1]}-${layersMatch[2]}` : '-';
+                const badgeClass = role === 'HEAD' ? 'cyan' : role === 'TAIL' ? 'green' : 'purple';
+
+                return `
+                    <tr>
+                        <td><code>${node.node_id.slice(0, 12)}...</code></td>
+                        <td><span class="badge ${badgeClass}">${role}</span></td>
+                        <td>${layers}</td>
+                        <td><code>${node.address}</code></td>
+                        <td><span class="badge green">Online</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Initialize
+        updateStats();
+        setInterval(updateStats, 5000);
+    </script>
+</body>
+</html>
+

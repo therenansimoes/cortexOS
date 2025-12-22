@@ -18,6 +18,11 @@ use cortex_core::runtime::EventBus;
 
 mod api;
 mod dashboard;
+mod distributed;
+mod logs;
+mod swarm;
+
+pub use logs::LOGS;
 
 use api::*;
 
@@ -111,11 +116,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build router
     let app = Router::new()
         .route("/", get(index))
+        .route("/admin", get(admin))
+        .route("/docs", get(docs))
+        .route("/manifest.json", get(manifest))
         .route("/api/status", get(get_status))
         .route("/api/peers", get(get_peers))
+        .route("/api/peers/detailed", get(get_peers_detailed))
+        .route("/api/system", get(get_system_info))
+        .route("/api/logs", get(get_logs))
+        .route("/api/logs/clear", post(clear_logs))
         .route("/api/skills", get(get_skills))
         .route("/api/tasks", get(get_tasks))
         .route("/api/tasks/delegate", post(delegate_task))
+        .route("/api/tasks/swarm", post(swarm_task))
+        .route("/api/tasks/distributed", post(distributed_task))
+        .route("/api/tasks/pipeline", post(pipeline_task))
+        .route("/api/tasks/tensor", post(distributed_tensor_inference))
+        .route("/api/pipeline/status", get(pipeline_status))
         .route("/api/stats", get(get_stats))
         // Static files are embedded in the binary
         .layer(CorsLayer::permissive())
@@ -130,5 +147,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn index() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
+}
+
+async fn admin() -> Html<&'static str> {
+    Html(include_str!("../static/admin.html"))
+}
+
+async fn docs() -> Html<&'static str> {
+    Html(include_str!("../static/docs.html"))
+}
+
+async fn manifest() -> (axum::http::HeaderMap, &'static str) {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        "application/manifest+json".parse().unwrap(),
+    );
+    (headers, include_str!("../static/manifest.json"))
 }
 

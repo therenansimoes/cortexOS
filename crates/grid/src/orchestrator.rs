@@ -27,7 +27,8 @@ struct PendingTask {
 }
 
 pub struct GridOrchestrator {
-    local_node_id: NodeId,
+    #[allow(dead_code)]
+    _local_node_id: NodeId,
     peer_store: PeerStore,
     event_bus: Arc<EventBus>,
     pending_tasks: Arc<RwLock<HashMap<[u8; 32], PendingTask>>>,
@@ -47,7 +48,7 @@ impl GridOrchestrator {
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
 
         Self {
-            local_node_id,
+            _local_node_id: local_node_id,
             peer_store,
             event_bus,
             pending_tasks: Arc::new(RwLock::new(HashMap::new())),

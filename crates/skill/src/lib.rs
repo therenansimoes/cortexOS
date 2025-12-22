@@ -11,3 +11,4 @@ pub use router::{SkillRouter, RouteDecision};
 pub use registry::{LocalSkillRegistry, NetworkSkillRegistry};
 pub use task::{SkillTask, TaskStatus, TaskResult};
 pub use error::{SkillError, Result};
+pub use cortex_reputation::SkillId;

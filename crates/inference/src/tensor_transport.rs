@@ -7,7 +7,7 @@ use candle_core::{DType, Device, Tensor};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 /// Serialized tensor format for network transmission
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,6 +165,7 @@ pub struct InferenceMetadata {
 
 /// Transport for sending/receiving tensors over TCP
 pub struct TensorTransport {
+    #[allow(dead_code)]
     local_addr: String,
 }
 

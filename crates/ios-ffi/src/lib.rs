@@ -10,10 +10,9 @@ use std::time::Instant;
 use uuid::Uuid;
 use tokio::runtime::Runtime;
 use tokio::net::UdpSocket;
-use tokio::sync::mpsc;
 
 // Real discovery from cortex-grid
-use cortex_grid::discovery::{LanDiscovery, Discovery, DiscoveryEvent};
+use cortex_grid::discovery::{LanDiscovery, Discovery};
 use cortex_grid::peer::NodeId;
 
 // Real inference
@@ -141,11 +140,16 @@ impl RealAgent {
             .map_err(|e| format!("Failed to load tokenizer from {:?}: {}", tokenizer_path, e))?;
             
         // Load Model (ShardedLlama)
+        #[cfg(feature = "metal")]
+        let device = Device::new_metal(0).unwrap_or(Device::Cpu);
+        #[cfg(not(feature = "metal"))]
+        let device = Device::Cpu;
+
         let config = ShardConfig {
             model_path: model_path.clone(),
             total_layers: 24, // Assuming Qwen-0.5B or similar
             role: PipelineRole::Single { start_layer: 0, end_layer: 23 },
-            device: Device::Cpu, // Start with CPU. Metal requires 'metal' feature and runtime check
+            device,
             dtype: DType::F32,
         };
         
@@ -243,7 +247,7 @@ impl RealAgent {
         // 2. Generation Loop (Simplified Greedy)
         let max_tokens = 50; // Short response for demo
         let mut output_text = String::new();
-        let device = Device::Cpu;
+        let device = model.device();
         
         let mut logits_processor = LogitsProcessor::new(299792458, Some(0.7), Some(0.9)); // Seed, temp, top_p
         

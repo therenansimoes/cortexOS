@@ -61,7 +61,7 @@ impl VMContext {
 }
 
 pub struct VM {
-    stack: Vec<Value>,
+    _stack: Vec<Value>,
     context: VMContext,
 }
 
@@ -74,14 +74,14 @@ impl Default for VM {
 impl VM {
     pub fn new() -> Self {
         Self {
-            stack: Vec::new(),
+            _stack: Vec::new(),
             context: VMContext::new(),
         }
     }
 
     pub fn with_context(context: VMContext) -> Self {
         Self {
-            stack: Vec::new(),
+            _stack: Vec::new(),
             context,
         }
     }

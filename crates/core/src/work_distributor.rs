@@ -4,7 +4,6 @@
 //! More powerful devices get more layers to process.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use tracing::{debug, info};
 
 use crate::device::DeviceCapabilities;

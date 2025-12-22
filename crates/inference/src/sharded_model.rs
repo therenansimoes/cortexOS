@@ -3,12 +3,12 @@
 //! Loads only a portion of a model's layers for pipeline parallelism.
 //! This enables TRUE distributed inference where each node holds different layers.
 
-use candle_core::{DType, Device, Module, Tensor, IndexOp};
-use candle_nn::{VarBuilder, linear_no_bias, RmsNorm, Activation};
+use candle_core::{DType, Device, Tensor, IndexOp, Module};
+use candle_nn::{VarBuilder, linear_no_bias, RmsNorm};
 use candle_transformers::models::llama::{Config as LlamaConfig, LlamaEosToks};
 use std::path::{Path, PathBuf};
 use std::fs;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -128,8 +128,11 @@ pub struct ShardedLlama {
 
 #[derive(Debug)]
 struct RotaryEmbedding {
+    #[allow(dead_code)]
     dim: usize,
+    #[allow(dead_code)]
     max_position_embeddings: usize,
+    #[allow(dead_code)]
     base: f32,
     cos: Tensor,
     sin: Tensor,
@@ -168,6 +171,7 @@ impl RotaryEmbedding {
 /// A single transformer block
 #[derive(Debug)]
 pub struct TransformerBlock {
+    #[allow(dead_code)]
     layer_idx: u32,
     attention_norm: RmsNorm,
     ffn_norm: RmsNorm,
@@ -301,7 +305,7 @@ impl ShardedLlama {
         let (_b, seq_len, _h) = hidden.dims3()?;
         
         // Process through our layers
-        for (i, layer) in self.layers.iter().enumerate() {
+        for (_i, layer) in self.layers.iter().enumerate() {
             // debug!("  🔄 Processing layer {} ({}/{})", layer.layer_idx, i + 1, self.layers.len());
             hidden = layer.forward(&hidden, &self.rope, 0)?; // pos=0 for non-causal/prefill
         }
@@ -338,6 +342,11 @@ impl ShardedLlama {
             hidden_size: self.llama_config.hidden_size as u32,
             vocab_size: self.llama_config.vocab_size as u32,
         }
+    }
+    
+    /// Get device
+    pub fn device(&self) -> &Device {
+        &self.config.device
     }
 }
 

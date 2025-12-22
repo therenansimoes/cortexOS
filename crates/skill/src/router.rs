@@ -3,7 +3,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use cortex_grid::NodeId;
-use cortex_reputation::{SkillId, TrustGraph, TrustScore};
+use cortex_reputation::{TrustGraph, TrustScore};
 
 use crate::registry::NetworkSkillRegistry;
 use crate::task::SkillTask;

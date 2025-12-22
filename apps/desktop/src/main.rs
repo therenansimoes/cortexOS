@@ -12,7 +12,7 @@ mod state;
 
 use iced::widget::{button, column, container, row, scrollable, text, text_input, toggler, Column, Space};
 use iced::{executor, theme, Application, Command, Element, Length, Settings, Theme};
-use state::{AppState, QueueItem, QueueDirection};
+use state::AppState;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 

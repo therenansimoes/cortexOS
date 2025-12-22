@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -7,7 +6,7 @@ use tracing::{debug, info, error};
 use cortex_grid::NodeId;
 use cortex_reputation::{Rating, SkillId, TrustGraph};
 
-use crate::definition::{Skill, SkillInput, SkillOutput};
+use crate::definition::{SkillInput, SkillOutput};
 use crate::registry::LocalSkillRegistry;
 use crate::task::{SkillTask, TaskResult};
 use crate::error::{SkillError, Result};
@@ -90,7 +89,7 @@ impl SkillExecutor {
 
     /// Execute a task and report result
     pub async fn execute_task(&self, mut task: SkillTask) -> TaskResult {
-        let start = Instant::now();
+        let _start = Instant::now();
 
         task.start(self.my_id);
 

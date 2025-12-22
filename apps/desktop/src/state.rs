@@ -14,16 +14,13 @@ use cortex_core::{DeviceCapabilities, TaskQueue};
 use cortex_grid::{LanDiscovery, NodeId, PeerInfo, PeerStore, Discovery};
 use cortex_inference::{
     DistributedExecutor, DistributedConfig, PipelineRole, PipelineNode, 
-    ExecutorError, InferenceResult
 };
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::net::TcpListener;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info};
 
 /// Direction of work in the queue
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -99,6 +96,7 @@ pub struct AppState {
     
     // Queue (uTorrent-style)
     pub queue: VecDeque<QueueItem>,
+    #[allow(dead_code)]
     pub task_queue: TaskQueue,
     
     // AI Chat
@@ -412,16 +410,23 @@ impl AppState {
 /// Helper to download model if missing
 fn download_model_if_missing(repo_id: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     info!("💾 Initializing HF API for {}", repo_id);
-    let api = hf_hub::api::sync::Api::new()?;
+    
+    // Use builder to be more explicit and robust
+    let api = hf_hub::api::sync::ApiBuilder::new()
+        .with_progress(true)
+        .build()
+        .map_err(|e| format!("Failed to initialize HF API: {}", e))?;
+        
     let repo = api.model(repo_id.to_string());
     
     // Download config
     info!("   Downloading config.json...");
-    let config_path = repo.get("config.json")?;
+    let config_path = repo.get("config.json")
+        .map_err(|e| format!("Failed to download config.json: {}", e))?;
     
     // Download weights (safetensors)
     info!("   Downloading model.safetensors...");
-    let weights_path = repo.get("model.safetensors")?;
+    let _weights_path = repo.get("model.safetensors")?;
     
     // Download tokenizer
     info!("   Downloading tokenizer.json...");

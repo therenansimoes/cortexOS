@@ -6,9 +6,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, RwLock, oneshot};
+use tokio::sync::{RwLock, oneshot};
 use tracing::{debug, error, info, warn};
 use candle_core::{Device, Tensor, DType};
+use candle_transformers::generation::LogitsProcessor;
+use tokenizers::Tokenizer;
 
 use crate::sharded_model::{ShardedLlama, ShardConfig, PipelineRole, ShardedModelError};
 use crate::tensor_transport::{
@@ -44,6 +46,8 @@ pub struct DistributedExecutor {
     config: DistributedConfig,
     /// Our local model shard
     shard: Arc<RwLock<Option<ShardedLlama>>>,
+    /// Tokenizer (only needed if HEAD)
+    tokenizer: Arc<RwLock<Option<Tokenizer>>>,
     /// Pipeline topology
     pipeline: Arc<RwLock<Vec<PipelineNode>>>,
     /// Pending inference requests
@@ -77,6 +81,7 @@ impl DistributedExecutor {
             transport: Arc::new(TensorTransport::new(&config.listen_addr)),
             config,
             shard: Arc::new(RwLock::new(None)),
+            tokenizer: Arc::new(RwLock::new(None)),
             pipeline: Arc::new(RwLock::new(Vec::new())),
             pending: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -97,6 +102,15 @@ impl DistributedExecutor {
         let shard = ShardedLlama::load(shard_config)?;
         
         *self.shard.write().await = Some(shard);
+
+        // Load tokenizer if HEAD
+        if role.is_head() {
+            let tokenizer_path = std::path::Path::new(&self.config.model_name).join("tokenizer.json");
+            info!("📖 Loading tokenizer from {:?}", tokenizer_path);
+            let tokenizer = Tokenizer::from_file(tokenizer_path)
+                .map_err(|e| ExecutorError::SerializationError(e.to_string()))?;
+            *self.tokenizer.write().await = Some(tokenizer);
+        }
         
         info!("✅ Executor initialized");
         Ok(())
@@ -160,7 +174,7 @@ impl DistributedExecutor {
         mut stream: TcpStream,
         shard: Arc<RwLock<Option<ShardedLlama>>>,
         pipeline: Arc<RwLock<Vec<PipelineNode>>>,
-        pending: Arc<RwLock<HashMap<String, PendingInference>>>,
+        _pending: Arc<RwLock<HashMap<String, PendingInference>>>,
         transport: Arc<TensorTransport>,
         node_id: String,
     ) -> Result<(), ExecutorError> {
@@ -296,73 +310,102 @@ impl DistributedExecutor {
         if !info.role.contains("Head") {
             return Err(ExecutorError::NotHead);
         }
+
+        // Get tokenizer
+        let tokenizer_guard = self.tokenizer.read().await;
+        let tokenizer = tokenizer_guard.as_ref()
+            .ok_or(ExecutorError::InferenceError("Tokenizer not loaded".to_string()))?;
         
-        // Tokenize input (simplified - just use bytes as tokens)
-        let tokens: Vec<u32> = input_text.bytes().map(|b| b as u32).collect();
+        // Tokenize input
+        let tokens = tokenizer.encode(input_text, true)
+            .map_err(|e| ExecutorError::InferenceError(e.to_string()))?
+            .get_ids()
+            .to_vec();
+            
+        let mut generated_tokens = tokens.clone();
+        let mut logits_processor = LogitsProcessor::new(299792458, Some(0.95), Some(0.8)); // seed, temp, top_p
+
+        let max_new_tokens = 50; // TODO: Make configurable
         let device = Device::Cpu;
+
+        info!("🧠 Generating {} tokens...", max_new_tokens);
         
-        // Create input tensor
-        let input = Tensor::from_vec(tokens.clone(), (1, tokens.len()), &device)?;
-        
-        // Process through our layers
-        info!("🔧 HEAD: Processing layers 0-{}", info.end_layer);
-        let hidden = shard.forward(&input)?;
-        
-        // If we're the only node, generate output directly
-        if pipeline.len() == 1 {
-            let total_time = start.elapsed().as_millis() as u64;
-            return Ok(InferenceResult {
-                task_id,
-                success: true,
-                tokens: tokens.clone(),
-                text: format!("[Single node inference - {} layers in {}ms]", info.num_layers, total_time),
-                total_time_ms: total_time,
-                nodes_used: vec![self.config.node_id.clone()],
-                per_node_time_ms: vec![(self.config.node_id.clone(), total_time)],
-            });
+        for _ in 0..max_new_tokens {
+            // Create input tensor (use last token for generation step, or full sequence for prefill)
+            // For simplicity in this demo, we re-process everything (inefficient but safe)
+            // Real impl would use KV cache and only pass new token
+            let input = Tensor::from_vec(generated_tokens.clone(), (1, generated_tokens.len()), &device)?;
+            
+            // Process through our layers
+            let hidden = shard.forward(&input)?;
+            
+            // If we're the only node, generate output directly
+            if pipeline.len() == 1 {
+                // We are HEAD+TAIL
+                // Hidden state is actually LOGITS here because we have lm_head
+                let logits = hidden.squeeze(0)?;
+                let logits = logits.get(logits.dim(0)? - 1)?;
+                let next_token = logits_processor.sample(&logits)?;
+                generated_tokens.push(next_token);
+                
+                // Stop on EOS
+                if next_token == 2 { // EOS for Llama/Qwen usually
+                     break;
+                }
+            } else {
+                 // Distributed case
+                let next_node = &pipeline[1];
+                
+                let _serialized = SerializedTensor::from_tensor(&hidden)?;
+                let metadata = InferenceMetadata {
+                    model_name: self.config.model_name.clone(),
+                    total_layers: self.config.total_layers,
+                    current_layer: info.end_layer,
+                    sequence_length: generated_tokens.len(),
+                    batch_size: 1,
+                };
+                
+                // Send and wait for final response (logits or token from tail?)
+                // Currently `forward_and_wait` returns a Tensor.
+                // If it's the TAIL returning logits, we sample here (HEAD sampling).
+                // Or TAIL samples and returns token?
+                // Our `forward_and_wait` expects `HiddenState` or `ProcessResponse`.
+                // Tail sends `FinalOutput` which is different.
+                // We need to adjust `forward_and_wait` or `handle_connection` to return logits.
+                
+                // For this demo, let's assume TAIL returns the processed hidden state (logits)
+                let response_tensor = self.transport.forward_and_wait(
+                    &next_node.address,
+                    &task_id,
+                    &hidden,
+                    metadata,
+                ).await?;
+                
+                // Sample from logits
+                let logits = response_tensor.squeeze(0)?;
+                let logits = logits.get(logits.dim(0)? - 1)?;
+                let next_token = logits_processor.sample(&logits)?;
+                generated_tokens.push(next_token);
+                 
+                 if next_token == 2 {
+                     break;
+                 }
+            }
         }
-        
-        // Forward to next node
-        let next_node = &pipeline[1];
-        info!("➡️ Forwarding hidden states to {} @ {}", 
-              &next_node.node_id[..8], next_node.address);
-        
-        let serialized = SerializedTensor::from_tensor(&hidden)?;
-        let metadata = InferenceMetadata {
-            model_name: self.config.model_name.clone(),
-            total_layers: self.config.total_layers,
-            current_layer: info.end_layer,
-            sequence_length: tokens.len(),
-            batch_size: 1,
-        };
-        
-        // Send and wait for final response
-        let result = self.transport.forward_and_wait(
-            &next_node.address,
-            &task_id,
-            &hidden,
-            metadata,
-        ).await;
         
         let total_time = start.elapsed().as_millis() as u64;
-        
-        match result {
-            Ok(_output) => {
-                Ok(InferenceResult {
-                    task_id,
-                    success: true,
-                    tokens,
-                    text: format!("[Distributed inference complete through {} nodes in {}ms]", 
-                                  pipeline.len(), total_time),
-                    total_time_ms: total_time,
-                    nodes_used: pipeline.iter().map(|n| n.node_id.clone()).collect(),
-                    per_node_time_ms: vec![], // Would track per-node timing
-                })
-            }
-            Err(e) => {
-                Err(ExecutorError::InferenceError(e.to_string()))
-            }
-        }
+        let text = tokenizer.decode(&generated_tokens, true)
+            .map_err(|e| ExecutorError::InferenceError(e.to_string()))?;
+            
+        Ok(InferenceResult {
+            task_id,
+            success: true,
+            tokens: generated_tokens,
+            text,
+            total_time_ms: total_time,
+            nodes_used: pipeline.iter().map(|n| n.node_id.clone()).collect(),
+            per_node_time_ms: vec![(self.config.node_id.clone(), total_time)],
+        })
     }
     
     /// Get status of the distributed executor

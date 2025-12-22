@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::cmp::Ordering;
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock, Mutex};
-use tracing::{debug, info, warn};
+use tokio::sync::{RwLock, Mutex};
+use tracing::debug;
 
 /// A tensor chunk to be processed
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -5,7 +5,7 @@ use tracing::{info, Level};
 
 use cortex_core::{
     event::{Event, Payload},
-    runtime::{EventBus, Runtime},
+    runtime::EventBus,
 };
 use cortex_grid::{NodeId, PeerStore, PeerInfo, Capabilities, GridOrchestrator};
 use cortex_skill::{NetworkSkillRegistry, SkillId};

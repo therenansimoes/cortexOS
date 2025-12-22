@@ -9,11 +9,13 @@ cd "$(dirname "$0")/../.."
 
 # Build for device (ARM64)
 echo "📱 Building for iOS Device (aarch64-apple-ios)..."
-cargo build -p cortex-ios-ffi --release --target aarch64-apple-ios
+# Enable Metal for GPU acceleration on device
+cargo build -p cortex-ios-ffi --release --target aarch64-apple-ios --features metal
 
 # Build for simulator (ARM64 - M1/M2 Mac)
 echo "🖥️  Building for iOS Simulator (aarch64-apple-ios-sim)..."
-cargo build -p cortex-ios-ffi --release --target aarch64-apple-ios-sim
+# Enable Metal for simulator (works on Apple Silicon)
+cargo build -p cortex-ios-ffi --release --target aarch64-apple-ios-sim --features metal
 
 # Copy libraries
 echo "📦 Copying libraries..."
@@ -41,4 +43,3 @@ echo "   6. Link libcortex_ios_ffi.a (device or simulator)"
 echo "   7. Add 'libresolv.tbd' to Frameworks"
 echo "   8. Build and run!"
 echo ""
-

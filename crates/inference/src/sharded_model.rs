@@ -107,6 +107,7 @@ pub struct ShardConfig {
 }
 
 /// A sharded portion of an LLM
+#[derive(Debug)]
 pub struct ShardedLlama {
     config: ShardConfig,
     llama_config: LlamaConfig,
@@ -125,6 +126,7 @@ pub struct ShardedLlama {
     rope: RotaryEmbedding,
 }
 
+#[derive(Debug)]
 struct RotaryEmbedding {
     dim: usize,
     max_position_embeddings: usize,
@@ -164,6 +166,7 @@ impl RotaryEmbedding {
 }
 
 /// A single transformer block
+#[derive(Debug)]
 pub struct TransformerBlock {
     layer_idx: u32,
     attention_norm: RmsNorm,

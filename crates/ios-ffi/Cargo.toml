@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 crate-type = ["staticlib"]
 
+[features]
+default = []
+metal = ["cortex-inference/metal", "candle-core/metal"]
+
 [dependencies]
 cortex-core = { path = "../core" }
 cortex-agent = { path = "../agent" }

@@ -1,0 +1,20 @@
+[package]
+name = "cortex-ios"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "cortex_ios"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+cortex-core = { path = "../../../crates/core" }
+cortex-grid = { path = "../../../crates/grid" }
+
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "net"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bincode = "1.3"
+tracing = "0.1"
+once_cell = "1.18"
+

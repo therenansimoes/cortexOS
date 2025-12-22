@@ -3,12 +3,18 @@
 
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
+use std::net::SocketAddr;
 use std::os::raw::c_char;
 use std::sync::Mutex;
 use std::time::Instant;
 use uuid::Uuid;
 use tokio::runtime::Runtime;
 use tokio::net::UdpSocket;
+use tokio::sync::mpsc;
+
+// Real discovery from cortex-grid
+use cortex_grid::discovery::{LanDiscovery, Discovery, DiscoveryEvent};
+use cortex_grid::peer::NodeId;
 
 // ============================================
 // REAL AGENT SYSTEM
@@ -288,23 +294,46 @@ impl RealAgent {
 }
 
 // ============================================
+// DISCOVERED PEER
+// ============================================
+
+#[derive(Clone, Debug)]
+pub struct DiscoveredPeer {
+    pub node_id: String,
+    pub addresses: Vec<SocketAddr>,
+    pub last_seen: Instant,
+    pub protocol: String,
+}
+
+// ============================================
 // GLOBAL STATE
 // ============================================
 
 struct CortexState {
     node_id: String,
+    node_id_bytes: [u8; 32],
     agents: HashMap<String, RealAgent>,
     event_log: Vec<String>,
     discovery_broadcasts: u32,
+    discovered_peers: HashMap<String, DiscoveredPeer>,
+    discovery_running: bool,
 }
 
 impl CortexState {
     fn new() -> Self {
+        let node_id = Uuid::new_v4().to_string()[..8].to_string();
+        let mut node_id_bytes = [0u8; 32];
+        let hash = blake3::hash(node_id.as_bytes());
+        node_id_bytes.copy_from_slice(hash.as_bytes());
+        
         Self {
-            node_id: Uuid::new_v4().to_string()[..8].to_string(),
+            node_id,
+            node_id_bytes,
             agents: HashMap::new(),
             event_log: Vec::new(),
             discovery_broadcasts: 0,
+            discovered_peers: HashMap::new(),
+            discovery_running: false,
         }
     }
 
@@ -313,6 +342,17 @@ impl CortexState {
             self.event_log.remove(0);
         }
         self.event_log.push(event);
+    }
+    
+    fn add_peer(&mut self, peer_id: String, addresses: Vec<SocketAddr>, protocol: &str) {
+        let peer = DiscoveredPeer {
+            node_id: peer_id.clone(),
+            addresses,
+            last_seen: Instant::now(),
+            protocol: protocol.to_string(),
+        };
+        self.discovered_peers.insert(peer_id.clone(), peer);
+        self.log_event(format!("🔍 Discovered peer {} via {}", peer_id, protocol));
     }
 }
 
@@ -354,8 +394,19 @@ pub extern "C" fn cortex_free_string(s: *mut c_char) {
 #[no_mangle]
 pub extern "C" fn cortex_init() -> bool {
     let _ = &*RUNTIME;
+    
+    // Initialize state
     let state = STATE.lock().unwrap();
-    !state.node_id.is_empty()
+    let initialized = !state.node_id.is_empty();
+    let already_running = state.discovery_running;
+    drop(state);
+    
+    // Auto-start multi-protocol discovery
+    if initialized && !already_running {
+        let _ = cortex_start_discovery();
+    }
+    
+    initialized
 }
 
 #[no_mangle]
@@ -545,41 +596,198 @@ pub extern "C" fn cortex_publish_event(kind: *const c_char, payload: *const c_ch
 }
 
 // ============================================
-// DISCOVERY API
+// DISCOVERY API - Multi-Protocol (UDP Multicast + Broadcast + mDNS)
 // ============================================
 
+/// Start continuous background discovery using ALL available protocols
+#[no_mangle]
+pub extern "C" fn cortex_start_discovery() -> *mut c_char {
+    let mut state = STATE.lock().unwrap();
+    
+    if state.discovery_running {
+        return string_to_c(r#"{"status":"already_running"}"#.to_string());
+    }
+    
+    state.discovery_running = true;
+    let node_id_bytes = state.node_id_bytes;
+    let node_id_str = state.node_id.clone();
+    
+    // Start LAN Discovery (UDP Multicast) from cortex-grid
+    RUNTIME.spawn(async move {
+        let node_id = NodeId(node_id_bytes);
+        let pubkey = [0u8; 32]; // TODO: Real keypair
+        
+        let (mut lan_discovery, mut event_rx) = LanDiscovery::new(node_id, pubkey, 7654);
+        
+        // Start the discovery
+        if let Err(e) = lan_discovery.start().await {
+            eprintln!("❌ LAN Discovery failed to start: {}", e);
+            return;
+        }
+        
+        println!("✅ Multi-protocol discovery started for node {}", node_id_str);
+        
+        // Process discovery events
+        while let Some(event) = event_rx.recv().await {
+            let peer_id_hex = hex::encode(&event.peer_id.0[..8]);
+            println!("🔍 Discovered peer: {} at {:?}", peer_id_hex, event.addresses);
+            
+            // Update global state
+            if let Ok(mut state) = STATE.lock() {
+                state.add_peer(peer_id_hex, event.addresses, "multicast");
+            }
+        }
+    });
+    
+    // Also start UDP Broadcast listener (for iOS compatibility)
+    RUNTIME.spawn(async move {
+        start_broadcast_listener().await;
+    });
+    
+    // Also send periodic broadcasts
+    let node_id_for_broadcast = state.node_id.clone();
+    let agents_len = state.agents.len();
+    RUNTIME.spawn(async move {
+        loop {
+            send_discovery_broadcast(&node_id_for_broadcast, agents_len).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+        }
+    });
+    
+    state.log_event("🚀 Multi-protocol discovery started (Multicast + Broadcast)".to_string());
+    string_to_c(r#"{"status":"started","protocols":["multicast","broadcast"]}"#.to_string())
+}
+
+/// Send a single discovery broadcast (manual trigger)
 #[no_mangle]
 pub extern "C" fn cortex_broadcast_discovery() -> *mut c_char {
     let mut state = STATE.lock().unwrap();
     state.discovery_broadcasts += 1;
     let broadcast_num = state.discovery_broadcasts;
     let node_id = state.node_id.clone();
-    let node_id_clone = node_id.clone();
     let agents_len = state.agents.len();
+    
+    // Start discovery if not already running
+    if !state.discovery_running {
+        drop(state);
+        cortex_start_discovery();
+        state = STATE.lock().unwrap();
+    }
 
+    let node_id_clone = node_id.clone();
     RUNTIME.spawn(async move {
-        // Bind to 0.0.0.0 to allow sending broadcast
-        if let Ok(socket) = UdpSocket::bind("0.0.0.0:0").await {
-            // Enable Broadcast (Essential for 255.255.255.255)
-            if let Err(e) = socket.set_broadcast(true) {
-                eprintln!("Failed to set broadcast: {}", e);
-            }
-            
-            // Use Global Broadcast Address
-            // This is more robust on home Wi-Fi than Multicast (239.x.x.x)
-            let target = "255.255.255.255:7077";
-            
-            let msg = format!(r#"{{"cortex":true,"node_id":"{}","type":"discovery","agents":{}}}"#, node_id_clone, agents_len);
-            
-            match socket.send_to(msg.as_bytes(), target).await {
-                Ok(_) => println!("Broadcast sent to {}", target),
-                Err(e) => eprintln!("Failed to send broadcast: {}", e),
-            }
-        }
+        send_discovery_broadcast(&node_id_clone, agents_len).await;
     });
 
-    state.log_event(format!("Discovery broadcast #{} (UDP Broadcast)", broadcast_num));
-    string_to_c(format!(r#"{{"node_id":"{}","broadcast":{},"agents":{},"message":"LAN discovery broadcast sent"}}"#, node_id, broadcast_num, agents_len))
+    state.log_event(format!("📡 Discovery broadcast #{}", broadcast_num));
+    string_to_c(format!(r#"{{"node_id":"{}","broadcast":{},"agents":{},"peers_found":{},"message":"Multi-protocol discovery active"}}"#, 
+        node_id, broadcast_num, agents_len, state.discovered_peers.len()))
+}
+
+/// Get list of discovered peers
+#[no_mangle]
+pub extern "C" fn cortex_get_peers() -> *mut c_char {
+    let state = STATE.lock().unwrap();
+    
+    let peers: Vec<String> = state.discovered_peers.values().map(|p| {
+        let addrs: Vec<String> = p.addresses.iter().map(|a| format!("\"{}\"", a)).collect();
+        format!(r#"{{"node_id":"{}","addresses":[{}],"protocol":"{}","age_secs":{}}}"#,
+            p.node_id, addrs.join(","), p.protocol, p.last_seen.elapsed().as_secs())
+    }).collect();
+    
+    string_to_c(format!("[{}]", peers.join(",")))
+}
+
+/// Get peer count
+#[no_mangle]
+pub extern "C" fn cortex_peer_count() -> i32 {
+    let state = STATE.lock().unwrap();
+    state.discovered_peers.len() as i32
+}
+
+// Internal: Send UDP broadcast
+async fn send_discovery_broadcast(node_id: &str, agents: usize) {
+    // Try multiple broadcast methods for maximum compatibility
+    
+    // 1. Global broadcast (255.255.255.255)
+    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0").await {
+        let _ = socket.set_broadcast(true);
+        let msg = format!(r#"{{"cortex":true,"node_id":"{}","type":"discovery","agents":{}}}"#, node_id, agents);
+        
+        let targets = [
+            "255.255.255.255:7077",  // Global broadcast
+            "239.255.70.77:7077",    // Multicast group
+        ];
+        
+        for target in &targets {
+            match socket.send_to(msg.as_bytes(), target).await {
+                Ok(_) => println!("📡 Broadcast sent to {}", target),
+                Err(e) => println!("⚠️ Broadcast to {} failed: {}", target, e),
+            }
+        }
+    }
+}
+
+// Internal: Listen for incoming broadcasts
+async fn start_broadcast_listener() {
+    // Try to bind to broadcast port
+    let socket = match UdpSocket::bind("0.0.0.0:7077").await {
+        Ok(s) => s,
+        Err(e) => {
+            // Try alternative port if 7077 is taken
+            match UdpSocket::bind("0.0.0.0:7078").await {
+                Ok(s) => s,
+                Err(_) => {
+                    eprintln!("❌ Could not bind broadcast listener: {}", e);
+                    return;
+                }
+            }
+        }
+    };
+    
+    let _ = socket.set_broadcast(true);
+    
+    // Join multicast group
+    let multicast_addr: std::net::Ipv4Addr = "239.255.70.77".parse().unwrap();
+    let _ = socket.join_multicast_v4(multicast_addr, std::net::Ipv4Addr::UNSPECIFIED);
+    
+    println!("👂 Broadcast listener started on port 7077");
+    
+    let mut buf = [0u8; 1024];
+    loop {
+        match socket.recv_from(&mut buf).await {
+            Ok((len, src)) => {
+                if let Ok(msg) = std::str::from_utf8(&buf[..len]) {
+                    if msg.contains("cortex") && msg.contains("node_id") {
+                        // Parse JSON to extract node_id
+                        if let Some(start) = msg.find("\"node_id\":\"") {
+                            let start = start + 11;
+                            if let Some(end) = msg[start..].find('"') {
+                                let peer_id = &msg[start..start+end];
+                                
+                                // Don't add ourselves
+                                if let Ok(state) = STATE.lock() {
+                                    if peer_id != state.node_id {
+                                        drop(state);
+                                        if let Ok(mut state) = STATE.lock() {
+                                            state.add_peer(
+                                                peer_id.to_string(),
+                                                vec![src],
+                                                "broadcast"
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Broadcast recv error: {}", e);
+            }
+        }
+    }
 }
 
 // ============================================

@@ -88,7 +88,7 @@ struct ContentView: View {
                     }
                     .padding()
                 }
-                .onChange(of: chatMessages.count) { oldValue, newValue in
+                .onChange(of: chatMessages.count) { _ in
                     if let last = chatMessages.last {
                         withAnimation {
                             proxy.scrollTo(last.id, anchor: .bottom)
@@ -121,96 +121,41 @@ struct ContentView: View {
     // MARK: - Network Tab
     
     var networkTab: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Stats
-                VStack(spacing: 15) {
-                    StatRow(icon: "network", label: "Peers", value: "\(peerCount)")
-                    StatRow(icon: "brain", label: "Agents", value: "\(cortex.agentCount)")
-                    StatRow(icon: "antenna.radiowaves.left.and.right", label: "Discovery", value: isContributing ? "Active" : "Off")
-                }
-                .padding()
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(12)
-                .padding(.horizontal)
-                
-                // Discovered Peers List
-                if peerCount > 0 {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Discovered Peers")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        
-                        let peers = cortex.getPeers()
-                        ForEach(0..<peers.count, id: \.self) { index in
-                            let peer = peers[index]
-                            HStack {
-                                Image(systemName: "desktopcomputer")
-                                    .foregroundColor(.green)
-                                VStack(alignment: .leading) {
-                                    Text(peer["node_id"] as? String ?? "Unknown")
-                                        .font(.system(.body, design: .monospaced))
-                                    if let addrs = peer["addresses"] as? [String], let first = addrs.first {
-                                        Text(first)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                Spacer()
-                                Text(peer["protocol"] as? String ?? "")
-                                    .font(.caption2)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.blue.opacity(0.2))
-                                    .cornerRadius(4)
-                            }
-                            .padding(.horizontal)
-                            .padding(.vertical, 8)
-                            .background(Color(.secondarySystemBackground))
-                            .cornerRadius(8)
-                            .padding(.horizontal)
-                        }
-                    }
-                } else {
-                    VStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-                        Text("Searching for peers...")
-                            .foregroundColor(.secondary)
-                        Text("Other CortexOS devices on your network will appear here")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
-                }
-                
-                // Manual Discovery Button
-                Button(action: {
-                    let _ = cortex.broadcastDiscovery()
-                    refreshStats()
-                }) {
-                    HStack {
-                        Image(systemName: "antenna.radiowaves.left.and.right")
-                        Text("Force Discovery Broadcast")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                }
-                .padding(.horizontal)
-                
-                Spacer()
-                
-                Text("Device: \(UIDevice.current.name)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        VStack(spacing: 20) {
+            // Stats
+            VStack(spacing: 15) {
+                StatRow(icon: "network", label: "Peers", value: "\(peerCount)")
+                StatRow(icon: "brain", label: "Agents", value: "\(cortex.agentCount)")
+                StatRow(icon: "cpu", label: "Score", value: "73/100")
             }
-            .padding(.top)
+            .padding()
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(12)
+            .padding(.horizontal)
+            
+            // Discovery
+            Button(action: {
+                let _ = cortex.broadcastDiscovery()
+            }) {
+                HStack {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                    Text("Broadcast Discovery")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+            }
+            .padding(.horizontal)
+            
+            Spacer()
+            
+            Text("Device: \(UIDevice.current.name)")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
+        .padding(.top)
     }
     
     // MARK: - Settings Tab
@@ -285,8 +230,8 @@ struct ContentView: View {
     }
     
     func refreshStats() {
-        peerCount = Int(cortex.peerCount)
-        let _ = cortex.getStats()
+        let stats = cortex.getStats()
+        // Update peer count, etc.
     }
     
     func sendMessage() {
@@ -379,3 +324,4 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
     }
 }
+

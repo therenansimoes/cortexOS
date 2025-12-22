@@ -10,6 +10,7 @@ crate-type = ["staticlib"]
 cortex-core = { path = "../core" }
 cortex-agent = { path = "../agent" }
 cortex-grid = { path = "../grid" }
+cortex-inference = { path = "../inference" }
 cortex-storage = { path = "../storage", default-features = false }
 cortex-reputation = { path = "../reputation" }
 cortex-skill = { path = "../skill" }
@@ -23,6 +24,11 @@ thiserror = "1.0"
 async-trait = "0.1"
 once_cell = "1.19"
 reqwest = { version = "0.12.26", features = ["json", "blocking"] }
+blake3 = "1.5"
+hex = "0.4"
+tokenizers = "0.20"
+candle-core = "0.8"
+candle-transformers = "0.8"
 
 [target.'cfg(not(target_os = "ios"))'.dependencies]
 tokio = { version = "1.35", features = ["macros", "rt-multi-thread"] }

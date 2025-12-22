@@ -8,7 +8,7 @@
 import SwiftUI
 import NaturalLanguage
 
-// C-compatible callback function
+// C-compatible callback function for CoreML
 func coreMLCallback(input: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
     guard let input = input else { return nil }
     let text = String(cString: input)
@@ -33,12 +33,7 @@ func coreMLCallback(input: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>
 @main
 struct CortexOSApp: App {
     init() {
-        // Initialize CortexOS
-        if cortex_init() {
-            print("CortexOS initialized")
-        }
-        
-        // Register CoreML callback
+        // Register CoreML callback for real on-device AI
         cortex_register_coreml(coreMLCallback)
     }
     

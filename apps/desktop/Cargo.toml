@@ -10,18 +10,20 @@ path = "src/main.rs"
 
 [dependencies]
 # GUI
-iced = { version = "0.12", features = ["tokio"] }
+iced = { version = "0.12", features = ["tokio", "debug", "advanced"] }
 
 # CortexOS
 cortex-core = { path = "../../crates/core" }
 cortex-grid = { path = "../../crates/grid" }
+cortex-inference = { path = "../../crates/inference" }
 
 # Async
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "net", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "net", "io-util", "fs"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+bincode = "1.3"
 
 # Utils
 blake3 = "1.5"
@@ -29,3 +31,7 @@ rand = "0.8"
 chrono = "0.4"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+
+# Model Management
+hf-hub = "0.3"
+tokenizers = "0.20"

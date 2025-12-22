@@ -11,6 +11,7 @@
 		F5F8AE802EF330000010728C /* CortexOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F8AE7E2EF330000010728C /* CortexOSApp.swift */; };
 		F5F8AE812EF330000010728C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F8AE7F2EF330000010728C /* ContentView.swift */; };
 		F5F8AE832EF330000010728C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F5F8AE822EF330000010728C /* Assets.xcassets */; };
+		F5F8AE852EF3400A0010728C /* CortexBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F8AE862EF3400A0010728C /* CortexBridge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +22,7 @@
 		F5F8AE7F2EF330000010728C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F5F8AE822EF330000010728C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F5F8AE842EF330000010728C /* CortexOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "CortexOS-Bridging-Header.h"; sourceTree = "<group>"; };
+		F5F8AE862EF3400A0010728C /* CortexBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CortexBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,6 +67,7 @@
 			children = (
 				F5F8AE7E2EF330000010728C /* CortexOSApp.swift */,
 				F5F8AE7F2EF330000010728C /* ContentView.swift */,
+				F5F8AE862EF3400A0010728C /* CortexBridge.swift */,
 				F5F8AE822EF330000010728C /* Assets.xcassets */,
 				F5F8AE742EF322FF0010728C /* Info.plist */,
 				F5F8AE842EF330000010728C /* CortexOS-Bridging-Header.h */,
@@ -146,6 +149,7 @@
 			files = (
 				F5F8AE802EF330000010728C /* CortexOSApp.swift in Sources */,
 				F5F8AE812EF330000010728C /* ContentView.swift in Sources */,
+				F5F8AE852EF3400A0010728C /* CortexBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -292,7 +296,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "/Users/renansimoes/Desktop/Projetos/cortexOS/target/aarch64-apple-ios/release/**";
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../../../../target/aarch64-apple-ios/release";
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "-lcortex_ios_ffi";
 				PRODUCT_BUNDLE_IDENTIFIER = com.rxstech.CortexOS;
@@ -327,7 +331,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "/Users/renansimoes/Desktop/Projetos/cortexOS/target/aarch64-apple-ios/release/**";
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../../../../target/aarch64-apple-ios/release";
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "-lcortex_ios_ffi";
 				PRODUCT_BUNDLE_IDENTIFIER = com.rxstech.CortexOS;

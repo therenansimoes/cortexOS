@@ -55,9 +55,20 @@ bool cortex_remove_agent(const char* agent_id);
 // Returns JSONL string (must free with cortex_free_string)
 char* cortex_export_dataset(const char* agent_id);
 
-// Broadcast LAN discovery
+// ============ Discovery API ============
+
+// Start continuous multi-protocol discovery (auto-called by cortex_init)
+char* cortex_start_discovery(void);
+
+// Broadcast LAN discovery (manual trigger)
 // Returns JSON result (must free with cortex_free_string)
 char* cortex_broadcast_discovery(void);
+
+// Get list of discovered peers as JSON array
+char* cortex_get_peers(void);
+
+// Get count of discovered peers
+int cortex_peer_count(void);
 
 // CoreML Support
 typedef char* (*CoreMLCallback)(const char* input);

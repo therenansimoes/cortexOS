@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::net::SocketAddr;
 use std::os::raw::c_char;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use uuid::Uuid;
 use tokio::runtime::Runtime;
@@ -15,6 +15,12 @@ use tokio::sync::mpsc;
 // Real discovery from cortex-grid
 use cortex_grid::discovery::{LanDiscovery, Discovery, DiscoveryEvent};
 use cortex_grid::peer::NodeId;
+
+// Real inference
+use cortex_inference::{ShardedLlama, ShardConfig, PipelineRole};
+use candle_core::{Device, Tensor, DType};
+use candle_transformers::generation::LogitsProcessor;
+use tokenizers::Tokenizer;
 
 // ============================================
 // REAL AGENT SYSTEM
@@ -43,20 +49,15 @@ pub enum InferenceBackend {
     LocalRuleBased,
     Remote { url: String, model: String },
     CoreML,
+    LocalLlama {
+        // Wrapped in Arc/Mutex for thread safety and cloning
+        model: Arc<Mutex<Option<ShardedLlama>>>,
+        tokenizer: Arc<Tokenizer>,
+        model_path: String,
+    },
 }
 
 // Callback type for CoreML inference (implemented in Swift)
-// Takes a JSON string (input), returns a JSON string (output)
-// The returned string must be freed by the caller (Rust) if allocated by Swift?
-// Actually, usually Swift returns a pointer that Rust takes ownership of, or copies.
-// For simplicity, let's assume Swift returns a pointer to a buffer that Rust copies immediately and Swift frees?
-// Or better: Rust passes a buffer to Swift? No, size is unknown.
-// Standard way: Swift allocates, returns pointer. Rust copies to String, then calls a "free" function?
-// Or: Swift returns a const char* that is valid until next call? No.
-// Let's use the standard `c_char` return. We will assume Swift allocates it using `malloc` or similar, and Rust calls `free`?
-// Actually, let's keep it simple: Swift returns a pointer, Rust copies it, and we rely on Swift to manage that memory (e.g. autorelease pool or static buffer if single threaded).
-// For a robust solution: Rust passes a callback to Swift to "return" the value.
-// But for now, let's assume Swift returns a `*mut c_char` that Rust must free.
 type CoreMLCallback = extern "C" fn(*const c_char) -> *mut c_char;
 
 static mut COREML_CALLBACK: Option<CoreMLCallback> = None;
@@ -132,6 +133,39 @@ impl RealAgent {
             history: Vec::new(),
         }
     }
+    
+    pub fn new_inference_llama(name: String, model_path: String) -> Result<Self, String> {
+        // Load Tokenizer
+        let tokenizer_path = std::path::Path::new(&model_path).join("tokenizer.json");
+        let tokenizer = Tokenizer::from_file(&tokenizer_path)
+            .map_err(|e| format!("Failed to load tokenizer from {:?}: {}", tokenizer_path, e))?;
+            
+        // Load Model (ShardedLlama)
+        let config = ShardConfig {
+            model_path: model_path.clone(),
+            total_layers: 24, // Assuming Qwen-0.5B or similar
+            role: PipelineRole::Single { start_layer: 0, end_layer: 23 },
+            device: Device::Cpu, // Start with CPU. Metal requires 'metal' feature and runtime check
+            dtype: DType::F32,
+        };
+        
+        let model = ShardedLlama::load(config)
+            .map_err(|e| format!("Failed to load model: {}", e))?;
+            
+        Ok(Self {
+            id: Uuid::new_v4().to_string()[..8].to_string(),
+            name,
+            agent_type: AgentType::Inference(InferenceBackend::LocalLlama {
+                model: Arc::new(Mutex::new(Some(model))),
+                tokenizer: Arc::new(tokenizer),
+                model_path,
+            }),
+            status: AgentStatus::Running,
+            created_at: Instant::now(),
+            events_processed: 0,
+            history: Vec::new(),
+        })
+    }
 
     pub fn type_name(&self) -> String {
         match &self.agent_type {
@@ -141,6 +175,7 @@ impl RealAgent {
                 InferenceBackend::LocalRuleBased => "inference (local)".to_string(),
                 InferenceBackend::Remote { model, .. } => format!("inference ({})", model),
                 InferenceBackend::CoreML => "inference (coreml)".to_string(),
+                InferenceBackend::LocalLlama { .. } => "inference (llama)".to_string(),
             },
         }
     }
@@ -181,8 +216,81 @@ impl RealAgent {
             InferenceBackend::CoreML => {
                 let raw = self.run_coreml_raw(input);
                 (raw.clone(), format!("🧠 [{}]: {}", self.name, raw))
+            },
+            InferenceBackend::LocalLlama { model, tokenizer, .. } => {
+                let raw = self.run_llama_raw(model, tokenizer, input);
+                (raw.clone(), format!("🦙 [{}]: {}", self.name, raw))
             }
         }
+    }
+    
+    fn run_llama_raw(&self, model_arc: &Arc<Mutex<Option<ShardedLlama>>>, tokenizer: &Tokenizer, input: &str) -> String {
+        let mut model_guard = model_arc.lock().unwrap();
+        let model = if let Some(m) = model_guard.as_ref() {
+            m
+        } else {
+            return "Model not initialized".to_string();
+        };
+        
+        // 1. Tokenize
+        let encoding = match tokenizer.encode(input, true) {
+            Ok(e) => e,
+            Err(e) => return format!("Tokenization failed: {}", e),
+        };
+        let input_ids = encoding.get_ids();
+        let mut tokens = input_ids.to_vec();
+        
+        // 2. Generation Loop (Simplified Greedy)
+        let max_tokens = 50; // Short response for demo
+        let mut output_text = String::new();
+        let device = Device::Cpu;
+        
+        let mut logits_processor = LogitsProcessor::new(299792458, Some(0.7), Some(0.9)); // Seed, temp, top_p
+        
+        for _ in 0..max_tokens {
+            // Forward pass
+            let input_tensor = match Tensor::from_vec(tokens.clone(), (1, tokens.len()), &device) {
+                Ok(t) => t,
+                Err(e) => return format!("Tensor error: {}", e),
+            };
+            
+            let logits = match model.forward(&input_tensor) {
+                Ok(l) => l,
+                Err(e) => return format!("Inference error: {}", e),
+            };
+            
+            // Extract last token logits
+            let (_b, seq_len, _vocab) = match logits.dims3() {
+                Ok(d) => d,
+                Err(_) => return "Logits shape error".to_string(),
+            };
+            let last_logits = match logits.get(0) {
+                Ok(t) => match t.get(seq_len - 1) {
+                    Ok(l) => l,
+                    Err(_) => return "Index error".to_string(),
+                },
+                Err(_) => return "Batch error".to_string(),
+            };
+            
+            // Sample
+            let next_token = match logits_processor.sample(&last_logits) {
+                Ok(t) => t,
+                Err(e) => return format!("Sampling error: {}", e),
+            };
+            
+            tokens.push(next_token);
+            
+            // Decode
+            if let Ok(text) = tokenizer.decode(&[next_token], true) {
+                output_text.push_str(&text);
+                // Stop at newline or EOS (simplification)
+                if text.contains('\n') || next_token == 2 { // EOS for Qwen/Llama usually
+                    break;
+                }
+            }
+        }
+        
+        output_text
     }
 
     fn run_coreml_raw(&self, input: &str) -> String {
@@ -450,6 +558,25 @@ pub extern "C" fn cortex_start_inference_agent(name: *const c_char) -> *mut c_ch
     state.log_event(format!("Started inference agent '{}' ({})", name, id));
     state.agents.insert(id.clone(), agent);
     string_to_c(format!(r#"{{"id":"{}","name":"{}","type":"inference"}}"#, id, name))
+}
+
+#[no_mangle]
+pub extern "C" fn cortex_start_llama_agent(name: *const c_char, model_path: *const c_char) -> *mut c_char {
+    let name = unsafe { c_to_string(name) };
+    let model_path = unsafe { c_to_string(model_path) };
+    
+    match RealAgent::new_inference_llama(name.clone(), model_path.clone()) {
+        Ok(agent) => {
+            let mut state = STATE.lock().unwrap();
+            let id = agent.id.clone();
+            state.log_event(format!("Started Llama agent '{}' ({})", name, id));
+            state.agents.insert(id.clone(), agent);
+            string_to_c(format!(r#"{{"id":"{}","name":"{}","type":"inference","backend":"llama","model":"{}"}}"#, id, name, model_path))
+        },
+        Err(e) => {
+            string_to_c(format!(r#"{{"error":"{}"}}"#, e))
+        }
+    }
 }
 
 #[no_mangle]

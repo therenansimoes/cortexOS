@@ -11,7 +11,13 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
    - Quick overview of all 40 PRs
    - Next steps
 
-2. **[PLAN_README.md](./PLAN_README.md)**
+2. **[QUICK_START_ISSUES.md](./QUICK_START_ISSUES.md)** 🚀 CREATE ISSUES NOW
+   - Fastest path to creating all tracking issues
+   - Step-by-step with exact commands
+   - 5-minute setup guide
+   - **Length**: ~200 lines
+
+3. **[PLAN_README.md](./PLAN_README.md)**
    - Quick reference guide
    - Phase overview table
    - Getting started instructions
@@ -51,20 +57,33 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
    - Common questions
    - **Length**: 314 lines
 
+7. **[CREATING_ISSUES.md](./CREATING_ISSUES.md)** 🎯 ISSUE MANAGEMENT
+   - Using GitHub's tasklist/sub-issue feature
+   - Creating parent tracking issues
+   - Converting checkboxes to tracked issues
+   - Organizing with labels and milestones
+   - Best practices and workflows
+   - **Length**: ~300 lines
+
 ### Automation
-7. **[.github/ISSUE_TEMPLATE/pr-task.md](./.github/ISSUE_TEMPLATE/pr-task.md)**
+8. **[.github/ISSUE_TEMPLATE/pr-task.md](./.github/ISSUE_TEMPLATE/pr-task.md)**
    - GitHub issue template
    - Standard structure for PR tracking
 
-8. **[tools/create-pr-issues.sh](./tools/create-pr-issues.sh)**
-   - Bash script using GitHub CLI
-   - Interactive phase selection
-   - Creates issues automatically
+9. **[tools/create-tasklist-issues.sh](./tools/create-tasklist-issues.sh)** ⭐ NEW
+   - Creates parent issues with sub-task checklists
+   - Uses GitHub's tasklist feature
+   - One command to create all phase tracking issues
 
-9. **[tools/create-issues.py](./tools/create-issues.py)**
-   - Python script using PyGithub
-   - Bulk issue creation
-   - Programmatic approach
+10. **[tools/create-pr-issues.sh](./tools/create-pr-issues.sh)**
+    - Bash script using GitHub CLI
+    - Interactive phase selection
+    - Creates issues automatically
+
+11. **[tools/create-issues.py](./tools/create-issues.py)**
+    - Python script using PyGithub
+    - Bulk issue creation
+    - Programmatic approach
 
 ### Project Documentation
 10. **[README.md](./README.md)** - CortexOS Blueprint
@@ -81,8 +100,9 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
 
 ### "I want to understand the plan quickly"
 1. [SUMMARY.md](./SUMMARY.md) - 5 min read
-2. [ROADMAP.md](./ROADMAP.md) - Browse the ASCII art
-3. [PLAN_README.md](./PLAN_README.md) - Quick reference
+2. [QUICK_START_ISSUES.md](./QUICK_START_ISSUES.md) - Create issues NOW
+3. [ROADMAP.md](./ROADMAP.md) - Browse the ASCII art
+4. [PLAN_README.md](./PLAN_README.md) - Quick reference
 
 ### "I want to start working on a PR"
 1. [HOW_TO_CREATE_PRS.md](./HOW_TO_CREATE_PRS.md) - Follow the guide
@@ -100,9 +120,10 @@ Welcome to the CortexOS development plan! This index helps you navigate all the 
 3. [WORK_PLAN.md](./WORK_PLAN.md) - Critical path
 
 ### "I want to create GitHub issues"
-1. [HOW_TO_CREATE_PRS.md](./HOW_TO_CREATE_PRS.md) - Three options explained
-2. Run `./tools/create-pr-issues.sh` or `python3 tools/create-issues.py`
-3. Or use `.github/ISSUE_TEMPLATE/pr-task.md` manually
+1. [CREATING_ISSUES.md](./CREATING_ISSUES.md) - Complete guide to tasklists and sub-issues ⭐
+2. Run `./tools/create-tasklist-issues.sh` to create parent tracking issues
+3. Or use `./tools/create-pr-issues.sh` or `python3 tools/create-issues.py`
+4. Or use `.github/ISSUE_TEMPLATE/pr-task.md` manually
 
 ## 📊 Plan Statistics
 
@@ -138,10 +159,13 @@ cat SUMMARY.md
 # View visual roadmap
 cat ROADMAP.md
 
-# Create issues for Phase 1
+# Create parent tracking issues with sub-tasks (RECOMMENDED) ⭐
+./tools/create-tasklist-issues.sh
+
+# OR create issues for Phase 1
 ./tools/create-pr-issues.sh
 
-# Create all issues at once
+# OR create all issues at once
 export GITHUB_TOKEN=your_token
 python3 tools/create-issues.py
 

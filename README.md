@@ -1,6 +1,6 @@
 CortexOS Blueprint v1.0
 
-> **📋 Development Plan Available**: See [SUMMARY.md](./SUMMARY.md) for the complete breakdown of 40 PRs across 7 development phases. Also check [ROADMAP.md](./ROADMAP.md) for a visual overview and [HOW_TO_CREATE_PRS.md](./HOW_TO_CREATE_PRS.md) for step-by-step instructions.
+> **📋 Development Plan Available**: See [SUMMARY.md](./SUMMARY.md) for the complete breakdown of 40 PRs across 7 development phases. **Ready to start?** → [QUICK_START_ISSUES.md](./QUICK_START_ISSUES.md) to create tracking issues now! Also check [ROADMAP.md](./ROADMAP.md) for a visual overview, [HOW_TO_CREATE_PRS.md](./HOW_TO_CREATE_PRS.md) for step-by-step instructions, and [CREATING_ISSUES.md](./CREATING_ISSUES.md) for detailed issue management guidance.
 
 ## Priority: Run Anywhere, Spread Widely
 
